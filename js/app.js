@@ -61,24 +61,21 @@ class Application {
   // --- Initial Schema Restoration / Loading ---
 
   restoreOrLoadInitialSchema() {
-    const lastSchemaName = localStorage.getItem('adapt_last_schema');
-    if (lastSchemaName) {
-      const savedData = localStorage.getItem(`adapt_schema_${lastSchemaName}`);
-      if (savedData) {
-        try {
-          const json = JSON.parse(savedData);
-          this.currentSchemaName = lastSchemaName;
-          this.model.fromJSON(json);
-          this.updateSchemaNameBadge(lastSchemaName);
-          setTimeout(() => this.canvas.fitToScreen(), 100);
-          return;
-        } catch (e) {
-          console.warn('Failed to restore cached schema:', e);
-        }
-      }
-    }
+    // Clear out any legacy cached schemas from localStorage
+    try {
+      const legacyKeys = [
+        'adapt_last_schema',
+        'adapt_schema_Banking_Conceptual_Schema',
+        'adapt_schema_Banking_ADAPT_Schema',
+        'adapt_schema_Tax_Conceptual_Schema',
+        'adapt_schema_Tax_System_Test',
+        'adapt_schema_trial',
+        'adapt_schema_testing'
+      ];
+      legacyKeys.forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
 
-    // Default: load sample schema
+    // Always load the official clean 'sale' sample schema on initial start
     this.loadSampleSchema();
   }
 
@@ -119,7 +116,7 @@ class Application {
 
     document.getElementById('btn-sample-schema')?.addEventListener('click', () => {
       this.loadSampleSchema();
-      this.showToast('Loaded multi-level sample schema', 'success');
+      this.showToast('Loaded sample schema: sale', 'success');
     });
 
     document.getElementById('btn-open-schema')?.addEventListener('click', () => {

@@ -10,8 +10,8 @@ A visual modeling and multidimensional analysis tool for **ADAPT** conceptual sc
 - **ADAT (Abstract Data Type)**:
   - Supports **Structured** and **Unstructured** natures.
   - Attributes with **Numeric** and **Non Numeric** data kinds.
-- **PAN (Primary Access Node)**:
-  - Dimensional access points with `UPDATE` / `NO UPDATE` attribute semantics.
+- **PAN (Parameteres of ANalysis)**:
+  - Parameters of ANalysis with `UPDATE` / `NO UPDATE` attribute semantics.
 - **5 Relationship / Connection Line Types**:
   1. **ISAB (`──────` Solid Line)**: Connects ADAT $\leftrightarrow$ PAN with *Additivity* (`True`/`False`) and *Applicability* (`True`/`False`) properties.
   2. **Specialization (`───▷` UML Inheritance Triangle)**: Connects specialized entities to parent.
