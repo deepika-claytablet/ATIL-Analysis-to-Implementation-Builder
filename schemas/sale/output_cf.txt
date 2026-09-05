@@ -1,0 +1,39 @@
+CREATE KEYSPACE sale
+WITH replication = {
+    'class': 'SimpleStrategy',
+    'replication_factor': 1
+};
+
+**Cassandra**
+ CREATE TABLE sale (
+Perishable_Sur_Key  Bigint
+,Perishable_attr_1  text
+,Product_Sur_Key  Bigint
+,Product_color  text
+,Product_name  text
+,non_perishable_Sur_Key  Bigint
+,non_perishable_attr_1  text
+,sale_Key  Bigint
+,value  decimal
+,PRIMARY KEY());
+**Cassandra**
+ CREATE TABLE sale_Meta (
+cardinality_sale_value_Product  map<frozen<set<text>>,text>
+,is_Additive_sale_value_Product  map<frozen<set<text>>,Boolean>
+,PRIMARY KEY());
+
+**HBase**
+ create 'sale','sale','Product','non_perishable','Perishable'
+put 'sale', rowKeyValue, 'sale:value', value
+put 'sale', rowKeyValue, 'sale:sale_Key', value
+put 'sale', rowKeyValue, 'Product:Product_color', value
+put 'sale', rowKeyValue, 'Product:Product_name', value
+put 'sale', rowKeyValue, 'Product:Product_Sur_Key', value
+put 'sale', rowKeyValue, 'non_perishable:non_perishable_attr_1', value
+put 'sale', rowKeyValue, 'non_perishable:non_perishable_Sur_Key', value
+put 'sale', rowKeyValue, 'Perishable:Perishable_attr_1', value
+put 'sale', rowKeyValue, 'Perishable:Perishable_Sur_Key', value
+**HBase**
+ create 'sale_Meta','is_Additive','cardinality'
+put 'sale_Meta', rowKeyValue, 'is_Additive: sale_value_Product', value
+put 'sale_Meta', rowKeyValue, 'cardinality: sale_value_Product', value

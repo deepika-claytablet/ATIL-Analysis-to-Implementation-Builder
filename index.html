@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADAPT - Conceptual Schema Builder</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="light-theme">
+  <div class="app-container">
+    <!-- Top Header Bar -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-emblem-badge" title="ADAT ISAB PAN">
+          <span>ADAT</span>
+          <span>ISAB</span>
+          <span>PAN</span>
+        </div>
+        <div class="brand-info">
+          <h1>ADAPT</h1>
+          <p class="subtitle">Conceptual Analysis Modelling</p>
+        </div>
+      </div>
+
+      <!-- Quick Canvas Controls -->
+      <div class="canvas-controls-bar">
+        <button id="btn-undo" class="icon-btn" title="Undo (Ctrl+Z)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></svg>
+        </button>
+        <button id="btn-redo" class="icon-btn" title="Redo (Ctrl+Y)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"/></svg>
+        </button>
+        <div class="divider-v"></div>
+        <button id="btn-zoom-out" class="icon-btn" title="Zoom Out">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <span id="zoom-level" class="zoom-indicator">50%</span>
+        <button id="btn-zoom-in" class="icon-btn" title="Zoom In">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button id="btn-zoom-fit" class="icon-btn" title="Fit to Screen (0)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+        </button>
+        <div class="divider-v"></div>
+        <button id="btn-clear" class="icon-btn danger" title="Clear Canvas">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
+        <button id="btn-sample-schema" class="btn btn-secondary" title="Load Multi-Level Tree Sample">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Sample Schema</span>
+        </button>
+        <button id="btn-open-schema" class="btn btn-secondary" title="Retrieve previously saved ADAPT schemas">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          <span>Open Schema</span>
+        </button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons-group">
+        <!-- Main SAVE Button -->
+        <button id="btn-save-image" class="btn btn-action btn-save-main" title="Save ADAPT Schema and create folder with PANCSVFiles, AdatCSVFiles, ISAB.TXT, and image">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          <span>SAVE</span>
+        </button>
+
+        <!-- Convert to Logical Dropdown Menu -->
+        <div class="dropdown-menu-container" id="dropdown-convert-container">
+          <button id="btn-convert-logical" class="btn btn-action btn-convert-logical" title="Convert Schema to Logical Data Models">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+            <span>Convert to Logical</span>
+            <span class="dropdown-caret">▾</span>
+          </button>
+          <div class="dropdown-menu hidden" id="dropdown-convert-menu">
+            <button class="dropdown-item" id="btn-to-relational">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4338CA" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+              </svg>
+              <div class="item-text">
+                <span class="item-title">Relational</span>
+                <span class="item-desc">Star Relational SQL (output.sql)</span>
+              </div>
+            </button>
+            <!-- Column Family conversion commented out for later cleanup
+            <button class="dropdown-item" id="btn-to-columnfamily">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+              </svg>
+              <div class="item-text">
+                <span class="item-title">Column Family</span>
+                <span class="item-desc">Cassandra / HBase CQL (output_cf.txt)</span>
+              </div>
+            </button>
+            -->
+          </div>
+        </div>
+
+        <!-- AQL Button beside Convert to Logical -->
+        <button id="btn-toggle-aql" class="btn btn-action btn-aql" title="Open AQL Query Console (OQL-based)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+          <span>AQL</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="workspace-body">
+      <!-- Left Sidebar: Palette (Top) + Docked Properties (Bottom) -->
+      <aside class="sidebar-left" id="sidebar-left">
+        <!-- Section 1: Palette -->
+        <div class="sidebar-palette" id="palette-pane">
+          <div class="palette-header">
+            <h2>Palette</h2>
+          </div>
+
+          <!-- Section 1: Draggable Nodes -->
+          <div class="palette-section">
+            <div class="section-title">
+              <span>Nodes</span>
+            </div>
+
+            <div class="palette-items">
+              <!-- 1. PAN Node -->
+              <div class="palette-item draggable-node" draggable="true" data-type="PAN" title="Drag PAN onto canvas">
+                <div class="palette-node-minimal pan-mini-box">
+                  <span class="mini-tag pan-tag">PAN</span>
+                </div>
+              </div>
+
+              <!-- 2. ADAT Node -->
+              <div class="palette-item draggable-node" draggable="true" data-type="ADAT" title="Drag ADAT onto canvas">
+                <div class="palette-node-minimal adat-mini-box">
+                  <span class="mini-tag adat-tag">ADAT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Connector Tools with heading "Label" -->
+          <div class="palette-section">
+            <div class="section-title">
+              <span>Label</span>
+            </div>
+
+            <div class="connector-tools">
+              <!-- (a) ISAB -->
+              <div class="connector-tool-btn active" data-link-type="SOLID" title="ISAB (Solid Connection Line)">
+                <div class="tool-icon">
+                  <svg width="28" height="12" viewBox="0 0 28 12">
+                    <line x1="2" y1="6" x2="26" y2="6" stroke="#2563EB" stroke-width="2"/>
+                    <circle cx="2" cy="6" r="2" fill="#2563EB"/>
+                    <circle cx="26" cy="6" r="2" fill="#2563EB"/>
+                  </svg>
+                </div>
+                <span class="tool-name">ISAB</span>
+              </div>
+
+              <!-- (b) Specialization -->
+              <div class="connector-tool-btn" data-link-type="UML_INHERITANCE" title="Specialization (UML Inheritance △)">
+                <div class="tool-icon">
+                  <svg width="28" height="12" viewBox="0 0 28 12">
+                    <line x1="2" y1="6" x2="19" y2="6" stroke="#7C3AED" stroke-width="2"/>
+                    <circle cx="2" cy="6" r="2" fill="#7C3AED"/>
+                    <polygon points="26,6 19,2 19,10" fill="#FFFFFF" stroke="#7C3AED" stroke-width="1.5"/>
+                  </svg>
+                </div>
+                <span class="tool-name">Specialization</span>
+              </div>
+
+              <!-- (c) Derived -->
+              <div class="connector-tool-btn" data-link-type="DISJOINT_D" title="Derived (△ with 'D')">
+                <div class="tool-icon">
+                  <svg width="28" height="12" viewBox="0 0 28 12">
+                    <line x1="2" y1="6" x2="17" y2="6" stroke="#DB2777" stroke-width="2"/>
+                    <circle cx="2" cy="6" r="2" fill="#DB2777"/>
+                    <polygon points="27,6 17,1 17,11" fill="#FDF2F8" stroke="#DB2777" stroke-width="1.5"/>
+                    <text x="21" y="8" font-size="6" font-family="sans-serif" font-weight="bold" fill="#BE185D" text-anchor="middle">D</text>
+                  </svg>
+                </div>
+                <span class="tool-name">Derived</span>
+              </div>
+
+              <!-- (d) Container -->
+              <div class="connector-tool-btn" data-link-type="COMPLETE_C" title="Container (△ with 'C')">
+                <div class="tool-icon">
+                  <svg width="28" height="12" viewBox="0 0 28 12">
+                    <line x1="2" y1="6" x2="17" y2="6" stroke="#059669" stroke-width="2"/>
+                    <circle cx="2" cy="6" r="2" fill="#059669"/>
+                    <polygon points="27,6 17,1 17,11" fill="#ECFDF5" stroke="#059669" stroke-width="1.5"/>
+                    <text x="21" y="8" font-size="6" font-family="sans-serif" font-weight="bold" fill="#047857" text-anchor="middle">C</text>
+                  </svg>
+                </div>
+                <span class="tool-name">Container</span>
+              </div>
+
+              <!-- (e) Complex -->
+              <div class="connector-tool-btn" data-link-type="AGGREGATION_DIAMOND" title="Complex (UML Aggregation ◊)">
+                <div class="tool-icon">
+                  <svg width="28" height="12" viewBox="0 0 28 12">
+                    <line x1="2" y1="6" x2="18" y2="6" stroke="#D97706" stroke-width="2"/>
+                    <circle cx="2" cy="6" r="2" fill="#D97706"/>
+                    <polygon points="26,6 22,2 18,6 22,10" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+                  </svg>
+                </div>
+                <span class="tool-name">Complex</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Docked Properties Pane (Below Palette) -->
+        <div class="sidebar-inspector" id="sidebar-inspector">
+          <div class="inspector-header" id="inspector-header-bar" title="Click to minimize or expand">
+            <div class="inspector-header-left">
+              <span class="inspector-icon">⚙️</span>
+              <h2 id="inspector-title">Properties</h2>
+            </div>
+            <button id="btn-close-inspector" class="icon-btn-sm" title="Minimize Properties (X)">✕</button>
+          </div>
+
+          <div class="inspector-content" id="inspector-content">
+            <!-- Empty State -->
+            <div class="empty-selection-state" id="inspector-empty">
+              <div class="empty-icon">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="9" y1="9" x2="15" y2="9"/>
+                  <line x1="9" y1="13" x2="15" y2="13"/>
+                  <line x1="9" y1="17" x2="13" y2="17"/>
+                </svg>
+              </div>
+              <p>Select a <strong>PAN</strong>, <strong>ADAT</strong>, or <strong>Connection Line</strong> on canvas to configure properties.</p>
+            </div>
+
+            <!-- Dynamic Form Container -->
+            <div class="inspector-form-container hidden" id="inspector-form"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Canvas & AQL Area -->
+      <div class="workspace-main-area" id="workspace-main-area">
+        <!-- Central Full-Width Canvas Workspace -->
+        <main class="canvas-workspace" id="canvas-workspace">
+          <div class="canvas-viewport" id="canvas-viewport">
+            <div class="canvas-grid-layer" id="canvas-grid"></div>
+            
+            <!-- SVG Layer -->
+            <svg class="canvas-svg-layer" id="canvas-svg">
+              <defs>
+                <marker id="marker-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#2563EB"/>
+                </marker>
+                <marker id="marker-temp" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 2 L 10 5 L 0 8 z" fill="#2563EB"/>
+                </marker>
+              </defs>
+
+              <g id="connections-group"></g>
+              <path id="temp-connection-line" class="temp-link hidden" d=""></path>
+            </svg>
+
+            <!-- Nodes Container -->
+            <div class="nodes-container" id="nodes-container"></div>
+          </div>
+
+          <!-- Floating Status Overlay -->
+          <div class="canvas-status-bar">
+            <div class="status-left">
+              <span id="schema-current-name" style="color:#0284C7; font-weight:800; margin-right:8px;">[Untitled Schema]</span>
+              <span id="schema-stats">0 PANs | 0 ADATs | 0 Connections</span>
+            </div>
+            <div class="status-right">
+              <span class="shortcut-tip">💡 Click SAVE to name your schema and create folder | Click Open Schema to retrieve anytime</span>
+            </div>
+          </div>
+        </main>
+
+        <!-- AQL Panel Resizer (Horizontal Grip Bar) -->
+        <div class="aql-panel-resizer hidden" id="aql-panel-resizer" title="Drag up or down to resize AQL Console">
+          <div class="aql-resizer-line"></div>
+          <div class="aql-resizer-handle">
+            <span>•••</span>
+          </div>
+        </div>
+
+        <!-- AQL Resizable Console Panel (Bottom 20% by default) -->
+        <section class="aql-console-panel hidden" id="aql-console-panel">
+          <!-- AQL Panel Header -->
+          <div class="aql-panel-header">
+            <div class="aql-header-left">
+              <span class="aql-icon">⚡</span>
+              <h3>AQL Query Console <small>(OQL-based)</small></h3>
+              <select id="aql-sample-queries" class="aql-sample-select" title="Load sample query for active schema">
+                <option value="">-- Load Sample AQL Query --</option>
+              </select>
+            </div>
+            <div class="aql-header-center">
+              <button id="btn-aql-check" class="btn btn-sm btn-aql-action btn-aql-check" title="Run Semantic Checker (Table VII & Table VIII)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Check AQL syntax</span>
+              </button>
+              <button id="btn-aql-translate" class="btn btn-sm btn-aql-action btn-aql-translate" title="Translate verified AQL to Relational SQL">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                <span>Translate to SQL</span>
+              </button>
+              <button id="btn-aql-clear" class="btn btn-sm btn-outline" title="Clear Query Editor">Clear</button>
+            </div>
+            <div class="aql-header-right">
+              <button id="btn-aql-close" class="icon-btn-sm" title="Close AQL Panel (X)">✕</button>
+            </div>
+          </div>
+
+          <!-- AQL Panel Body (Split Editor & Results) -->
+          <div class="aql-panel-body">
+            <!-- Left: Query Editor Textarea -->
+            <div class="aql-editor-container">
+              <div class="aql-editor-header">
+                <span>AQL Query Editor</span>
+                <span class="aql-syntax-hint">SELECT [DISTINCT] &lt;expr&gt; FROM &lt;iterators&gt; [WHERE &lt;cond&gt;] [GROUP BY &lt;cols&gt;]</span>
+              </div>
+              <textarea id="aql-query-input" class="aql-textarea" spellcheck="false" placeholder="Write AQL query here... e.g.&#10;SELECT S.amount, P.branch_code&#10;FROM Sales S, S.Product P&#10;WHERE S.amount > 100;"></textarea>
+            </div>
+
+            <!-- Right: Results with Tabs -->
+            <div class="aql-results-container">
+              <div class="aql-tabs-bar">
+                <button class="aql-tab-btn active" id="tab-aql-checker">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span>Checker Analysis</span>
+                </button>
+                <button class="aql-tab-btn" id="tab-aql-sql">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span>Translated SQL</span>
+                </button>
+              </div>
+
+              <div class="aql-tab-pane" id="pane-aql-checker">
+                <div class="aql-results-scroll" id="aql-checker-results">
+                  <div class="aql-empty-output">Click <strong>"Check AQL syntax"</strong> to evaluate query semantics.</div>
+                </div>
+              </div>
+
+              <div class="aql-tab-pane hidden" id="pane-aql-sql">
+                <div class="aql-sql-header-bar">
+                  <span class="sql-target-label">Target: Relational SQL</span>
+                  <button id="btn-aql-copy-sql" class="btn-copy-sm" title="Copy SQL">Copy SQL</button>
+                </div>
+                <pre class="aql-sql-code"><code id="aql-sql-output">-- SQL translation will appear here</code></pre>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Dialog: Save ADAPT Schema (Named Folder Written by User) -->
+  <div class="modal-backdrop hidden" id="modal-save-image">
+    <div class="modal-dialog modal-md">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <div>
+            <h3>Save ADAPT Schema</h3>
+            <p class="modal-subtitle">Specify your schema name to create its dedicated folder and files</p>
+          </div>
+        </div>
+        <button class="modal-close" data-close="modal-save-image">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label for="save-schema-name" style="color:#0F172A; font-weight:800; font-size:0.85rem;">Name the ADAPT Schema <span style="color:#DC2626;">*</span></label>
+          <input type="text" id="save-schema-name" class="form-control" value="" placeholder="Type schema name (required)..." autocomplete="off" style="font-size:0.95rem; font-weight:600; padding:0.6rem 0.85rem; border-color:#2563EB;">
+          <span style="font-size:0.75rem; color:var(--text-muted);">Please type the schema name. A folder with this exact name will be created.</span>
+        </div>
+
+        <div class="export-preview-box">
+          <div id="image-export-preview" class="preview-img-container">
+            <span class="preview-loading">Generating preview...</span>
+          </div>
+        </div>
+
+        <div class="export-info-card" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; padding:0.85rem 1rem; font-size:0.82rem; color:#166534;">
+          <strong>📁 Files Created Inside <span id="preview-folder-name" style="font-family:var(--font-mono); font-weight:700; color:#0369A1;">[Your Schema Name]/</span>:</strong>
+          <ul style="margin-top:0.35rem; padding-left:1.25rem; line-height:1.5;">
+            <li><strong>PANCSVFiles/:</strong> Contains <code>&lt;PAN NAME&gt;.TXT</code> for each PAN node</li>
+            <li><strong>AdatCSVFiles/:</strong> Contains <code>&lt;ADAT NAME&gt;.TXT</code> for each ADAT node</li>
+            <li><strong>ISAB.TXT:</strong> <code>&lt;Adat name&gt;,&lt;attribute&gt;,&lt;Pan Name&gt;,&lt;Additivity&gt;,&lt;Multiplicities&gt;,&lt;Applicability&gt;</code></li>
+            <li><strong>Diagram Image:</strong> Saved as high-res PNG / SVG</li>
+            <li><strong>schema_data.json:</strong> Stored for one-click schema retrieval anytime</li>
+          </ul>
+        </div>
+
+        <div class="form-group-row">
+          <div class="form-group">
+            <label for="export-format">Image Format</label>
+            <select id="export-format" class="form-control">
+              <option value="png" selected>PNG (High Resolution Raster)</option>
+              <option value="svg">SVG (Scalable Vector Diagram)</option>
+              <option value="jpeg">JPEG (Compressed)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="export-scale">Scale / Resolution</label>
+            <select id="export-scale" class="form-control">
+              <option value="1">1x Standard</option>
+              <option value="2" selected>2x High-DPI (Retina)</option>
+              <option value="3">3x Ultra High-Res</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="export-bg">Background</label>
+          <select id="export-bg" class="form-control">
+            <option value="#ffffff" selected>White Background (Default)</option>
+            <option value="transparent">Transparent</option>
+            <option value="#f8fafc">Light Slate (#F8FAFC)</option>
+            <option value="#0f172a">Dark Blueprint (#0F172A)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modal-save-image">Cancel</button>
+        <button id="btn-do-download-image" class="btn btn-save-main">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span>Save Schema & Create Folder</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Dialog: Open / Retrieve Saved ADAPT Schemas -->
+  <div class="modal-backdrop hidden" id="modal-load-schema">
+    <div class="modal-dialog modal-md">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          <div>
+            <h3>Open / Retrieve ADAPT Schema</h3>
+            <p class="modal-subtitle">Select any previously saved conceptual schema to load onto canvas</p>
+          </div>
+        </div>
+        <button class="modal-close" data-close="modal-load-schema">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="saved-schemas-container" id="saved-schemas-list-container">
+          <div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem;">
+            Loading saved schemas...
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border-color); padding-top:1rem; display:flex; flex-direction:column; gap:0.5rem;">
+          <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Or Load Schema From File</label>
+          <input type="file" id="input-load-schema-file" accept=".json" class="form-control" style="font-size:0.82rem;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modal-load-schema">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Dialog: Database Conversion Viewers -->
+  <div class="modal-backdrop hidden" id="modal-db-convert">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span id="db-modal-icon" class="modal-icon-badge">🗄️</span>
+          <div>
+            <h3 id="db-modal-title">Schema Conversion</h3>
+            <p id="db-modal-subtitle" class="modal-subtitle">Target Database Schema Definition</p>
+          </div>
+        </div>
+        <button class="modal-close" data-close="modal-db-convert">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="db-tabs-bar">
+          <button class="db-tab-btn active" data-tab="tab-code">Generated Schema Code</button>
+          <button class="db-tab-btn" data-tab="tab-explanation">Structure & Mapping Rules</button>
+        </div>
+
+        <div class="tab-content" id="tab-code">
+          <div class="code-header">
+            <span id="code-lang-label" class="code-lang-tag">SQL</span>
+            <div class="code-actions">
+              <button id="btn-copy-code" class="btn-sm btn-outline">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                <span>Copy Code</span>
+              </button>
+              <button id="btn-download-code" class="btn-sm btn-outline">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download File</span>
+              </button>
+            </div>
+          </div>
+          <pre class="code-viewport"><code id="converted-code-output">-- Schema will appear here</code></pre>
+        </div>
+
+        <div class="tab-content hidden" id="tab-explanation">
+          <div id="converted-explanation-output" class="markdown-explanation"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modal-db-convert">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Application Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{
+  "nodes": [
+    {
+      "id": "pan_mtdzj9g9_eqz7",
+      "type": "PAN",
+      "name": "Product",
+      "attributes": [
+        {
+          "id": "pan_attr_mtdzjk3j_ditz",
+          "name": "name",
+          "updateType": "UPDATE"
+        },
+        {
+          "id": "pan_attr_mtdzjt1l_99yi",
+          "name": "color",
+          "updateType": "NO UPDATE"
+        }
+      ],
+      "x": 1090,
+      "y": 20,
+      "width": 250,
+      "height": 169
+    },
+    {
+      "id": "pan_mtdzk6r1_9inq",
+      "type": "PAN",
+      "name": "non perishable",
+      "attributes": [
+        {
+          "id": "pan_attr_mtdzkztq_k42j",
+          "name": "attr_1",
+          "updateType": "NO UPDATE"
+        }
+      ],
+      "x": 880,
+      "y": 310,
+      "width": 250,
+      "height": 133
+    },
+    {
+      "id": "pan_mtdzl56d_r4ui",
+      "type": "PAN",
+      "name": "Perishable",
+      "attributes": [
+        {
+          "id": "pan_attr_mtnxzfwp_qi67",
+          "name": "attr_1",
+          "updateType": "NO UPDATE"
+        }
+      ],
+      "x": 1200,
+      "y": 310,
+      "width": 250,
+      "height": 133
+    },
+    {
+      "id": "adat_mtdzlzhl_bik9",
+      "type": "ADAT",
+      "name": "sale",
+      "nature": "Structured",
+      "attributes": [
+        {
+          "id": "attr_mtdzmh4m_v2mg",
+          "name": "value",
+          "dataKind": "Numeric"
+        }
+      ],
+      "x": 320,
+      "y": 40,
+      "width": 250,
+      "height": 208
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_mtdzljm1_rwdo",
+      "sourceId": "pan_mtdzk6r1_9inq",
+      "targetId": "pan_mtdzj9g9_eqz7",
+      "linkType": "UML_INHERITANCE",
+      "adatMultiplicity": "",
+      "panMultiplicity": "",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "top",
+      "targetAnchor": "bottom",
+      "waypoint": null
+    },
+    {
+      "id": "edge_mtdzloqr_eg03",
+      "sourceId": "pan_mtdzl56d_r4ui",
+      "targetId": "pan_mtdzj9g9_eqz7",
+      "linkType": "UML_INHERITANCE",
+      "adatMultiplicity": "",
+      "panMultiplicity": "",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "top",
+      "targetAnchor": "bottom",
+      "waypoint": null
+    },
+    {
+      "id": "edge_mtdzr9vt_hzk6",
+      "sourceId": "adat_mtdzlzhl_bik9",
+      "targetId": "pan_mtdzj9g9_eqz7",
+      "linkType": "SOLID",
+      "adatMultiplicity": "*",
+      "panMultiplicity": "*",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "right",
+      "targetAnchor": "left",
+      "waypoint": null
+    }
+  ],
+  "name": "sale"
+}

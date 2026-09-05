@@ -1,0 +1,2 @@
+specialization,Product,non_perishable
+specialization,Product,Perishable

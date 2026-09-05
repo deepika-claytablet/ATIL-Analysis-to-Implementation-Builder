@@ -1,0 +1,1 @@
+sale,value,Product,True,* *,True

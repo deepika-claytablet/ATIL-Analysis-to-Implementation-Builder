@@ -1,0 +1,1 @@
+rupee_sale,Structured,rup_value,Numeric

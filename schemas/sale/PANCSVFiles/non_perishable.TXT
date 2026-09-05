@@ -1,0 +1,1 @@
+non_perishable,attr_1,NO UPDATE

@@ -1,0 +1,2 @@
+pan,Product,specialization1
+adat,sale,atomic,notmixed

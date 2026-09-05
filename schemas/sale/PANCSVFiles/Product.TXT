@@ -1,0 +1,2 @@
+Product,name,UPDATE
+Product,color,NO UPDATE

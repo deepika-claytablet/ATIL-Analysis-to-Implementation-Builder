@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Java compiled class files
+*.class
+target/classes/
+test_bin/
+
+# Temporary & test runner files
+test_*.html
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.iml
+*.swp
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
