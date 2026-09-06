@@ -1,0 +1,2 @@
+PAN_Account_Access,account_no,UPDATE
+PAN_Account_Access,branch_code,NO UPDATE

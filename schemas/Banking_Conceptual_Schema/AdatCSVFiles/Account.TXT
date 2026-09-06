@@ -1,0 +1,4 @@
+Account,Structured,account_number,Numeric
+Account,Structured,holder_name,Non Numeric
+Account,Structured,balance,Numeric
+Account,Structured,opened_date,Non Numeric

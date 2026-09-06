@@ -1,0 +1,5 @@
+complex,CustomerPortfolio,Account
+derived,CustomerPortfolio,AuditTrail
+container,CustomerPortfolio,KYCDocuments
+specialization,Account,SavingsAccount
+specialization,Account,CheckingAccount

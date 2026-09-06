@@ -220,45 +220,28 @@ export class AQLChecker {
     };
 
     try {
-      // 1. Resolve FROM clause and define iterator variables
-      this.resolveFromClause(ast.from, report);
+      // 1. Check primary query
+      this.checkSingleQuery(ast, report, 'Primary Query');
 
-      // 2. Check SELECT clause
-      this.checkSelectClause(ast.select, report);
+      // 2. Check chained set operations (UNION, INTERSECT, EXCEPT)
+      if (ast.setOperations && ast.setOperations.length > 0) {
+        ast.setOperations.forEach((setOp, idx) => {
+          this.checkSingleQuery(setOp.query, report, `${setOp.op} Query #${idx + 1}`);
 
-      // 3. Check WHERE clause (if present)
-      if (ast.where) {
-        this.checkExpression(ast.where, 'WHERE', report);
+          // Set operation compatibility: both queries must have same projection count
+          if (setOp.query.select.length !== ast.select.length) {
+            report.errors.push(`In ${setOp.op} operation: Both queries must have the same number of expressions in their SELECT clause (primary query has ${ast.select.length}, ${setOp.op} branch has ${setOp.query.select.length}).`);
+          }
+        });
       }
-
-      // 4. Check GROUP BY clause (if present)
-      if (ast.groupBy && ast.groupBy.length > 0) {
-        ast.groupBy.forEach(item => this.checkExpression(item, 'GROUP BY', report));
-        this.checkGroupByCompliance(ast, report);
-      }
-
-      // 5. Check HAVING clause (if present)
-      if (ast.having) {
-        this.checkExpression(ast.having, 'HAVING', report);
-      }
-
-      // 6. Check Overall Aggregation rules (PANs participating in aggregation must analyse ADAT)
-      this.checkOverallAggregation(report);
-
-      // 7. Check ISAB restriction on Derived ADAT leaves
-      this.checkDerivedLeafISABRestrictions(report);
-
-      // 8. Check ISAB restriction on Specialization ADAT non-leaves
-      this.checkSpecializationNonLeafISABRestrictions(report);
-
-      // 9. Check ADAT parent hierarchy consistency
-      this.checkAdatParentHierarchyConsistency(report);
 
       report.isValid = report.errors.length === 0;
       report.summary = report.isValid 
         ? (ast.isView 
             ? `View '${ast.viewName}' verified successfully! Satisfies multidimensional analysis semantics.`
-            : `AQL query verified successfully! Satisfies multidimensional analysis semantics.`)
+            : (ast.setOperations && ast.setOperations.length > 0
+                ? `Compound AQL query with set operations verified successfully! Satisfies multidimensional analysis semantics.`
+                : `AQL query verified successfully! Satisfies multidimensional analysis semantics.`))
         : `AQL query contains ${report.errors.length} semantic error(s). Please review checks below.`;
 
     } catch (err) {
@@ -268,6 +251,42 @@ export class AQLChecker {
     }
 
     return report;
+  }
+
+  checkSingleQuery(queryAst, report, queryLabel = 'Query') {
+    // 1. Resolve FROM clause and define iterator variables
+    this.resolveFromClause(queryAst.from, report);
+
+    // 2. Check SELECT clause
+    this.checkSelectClause(queryAst.select, report);
+
+    // 3. Check WHERE clause (if present)
+    if (queryAst.where) {
+      this.checkExpression(queryAst.where, 'WHERE', report);
+    }
+
+    // 4. Check GROUP BY clause (if present)
+    if (queryAst.groupBy && queryAst.groupBy.length > 0) {
+      queryAst.groupBy.forEach(item => this.checkExpression(item, 'GROUP BY', report));
+      this.checkGroupByCompliance(queryAst, report);
+    }
+
+    // 5. Check HAVING clause (if present)
+    if (queryAst.having) {
+      this.checkExpression(queryAst.having, 'HAVING', report);
+    }
+
+    // 6. Check Overall Aggregation rules (PANs participating in aggregation must analyse ADAT)
+    this.checkOverallAggregation(report);
+
+    // 7. Check ISAB restriction on Derived ADAT leaves
+    this.checkDerivedLeafISABRestrictions(report);
+
+    // 8. Check ISAB restriction on Specialization ADAT non-leaves
+    this.checkSpecializationNonLeafISABRestrictions(report);
+
+    // 9. Check ADAT parent hierarchy consistency
+    this.checkAdatParentHierarchyConsistency(report);
   }
 
   // --- GROUP BY Projection Compliance Check (Requirement 1a) ---

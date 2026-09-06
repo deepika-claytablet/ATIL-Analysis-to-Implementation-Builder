@@ -105,7 +105,8 @@ export class AQLParser {
           'SELECT', 'DISTINCT', 'FROM', 'WHERE', 'GROUP', 'BY', 'HAVING', 
           'ORDER', 'ASC', 'DESC', 'AS', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 
           'IS', 'NULL', 'TRUE', 'FALSE', 'SUM', 'AVG', 'COUNT', 'MIN', 'MAX',
-          'CREATE', 'VIEW', 'UPDATE', 'DELETE', 'SET'
+          'CREATE', 'VIEW', 'UPDATE', 'DELETE', 'SET',
+          'UNION', 'INTERSECT', 'EXCEPT', 'ALL'
         ];
 
         if (keywords.includes(upper)) {
@@ -154,17 +155,48 @@ export class AQLParser {
       throw new Error("UPDATE and DELETE statements are not permitted in AQL.");
     }
 
-    const ast = {
+    // Parse primary SELECT query
+    const firstQuery = this.parseSelectStatement();
+
+    // Check for chained set operations: UNION [ALL], INTERSECT, EXCEPT
+    const setOperations = [];
+    while (true) {
+      if (this.matchKeyword('UNION')) {
+        let op = 'UNION';
+        if (this.matchKeyword('ALL')) {
+          op = 'UNION ALL';
+        }
+        const subQuery = this.parseSelectStatement();
+        setOperations.push({ op, query: subQuery });
+      } else if (this.matchKeyword('INTERSECT')) {
+        const subQuery = this.parseSelectStatement();
+        setOperations.push({ op: 'INTERSECT', query: subQuery });
+      } else if (this.matchKeyword('EXCEPT')) {
+        const subQuery = this.parseSelectStatement();
+        setOperations.push({ op: 'EXCEPT', query: subQuery });
+      } else {
+        break;
+      }
+    }
+
+    return {
       isView,
       viewName,
+      ...firstQuery,
+      setOperations,
+      raw: queryText
+    };
+  }
+
+  parseSelectStatement() {
+    const query = {
       select: [],
       isDistinct: false,
       from: [],
       where: null,
       groupBy: [],
       having: null,
-      orderBy: [],
-      raw: queryText
+      orderBy: []
     };
 
     if (!this.matchKeyword('SELECT')) {
@@ -172,22 +204,22 @@ export class AQLParser {
     }
 
     if (this.matchKeyword('DISTINCT')) {
-      ast.isDistinct = true;
+      query.isDistinct = true;
     }
 
     // Parse SELECT projections
-    ast.select = this.parseSelectClause();
+    query.select = this.parseSelectClause();
 
     if (!this.matchKeyword('FROM')) {
       throw new Error("Missing 'FROM' clause in AQL query.");
     }
 
     // Parse FROM clause (iterators and chains)
-    ast.from = this.parseFromClause();
+    query.from = this.parseFromClause();
 
     // Optional WHERE clause
     if (this.matchKeyword('WHERE')) {
-      ast.where = this.parseExpression();
+      query.where = this.parseExpression();
     }
 
     // Optional GROUP BY clause
@@ -195,12 +227,12 @@ export class AQLParser {
       if (!this.matchKeyword('BY')) {
         throw new Error("Expected 'BY' after 'GROUP'.");
       }
-      ast.groupBy = this.parseExpressionList();
+      query.groupBy = this.parseExpressionList();
     }
 
     // Optional HAVING clause
     if (this.matchKeyword('HAVING')) {
-      ast.having = this.parseExpression();
+      query.having = this.parseExpression();
     }
 
     // Optional ORDER BY clause
@@ -208,10 +240,10 @@ export class AQLParser {
       if (!this.matchKeyword('BY')) {
         throw new Error("Expected 'BY' after 'ORDER'.");
       }
-      ast.orderBy = this.parseOrderByList();
+      query.orderBy = this.parseOrderByList();
     }
 
-    return ast;
+    return query;
   }
 
   // --- Helper Methods ---

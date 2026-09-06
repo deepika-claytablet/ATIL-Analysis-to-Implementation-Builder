@@ -1,0 +1,3 @@
+CustomerPortfolio,Structured,portfolio_id,Numeric
+CustomerPortfolio,Structured,risk_tier,Non Numeric
+CustomerPortfolio,Structured,total_valuation,Numeric

@@ -1,0 +1,2 @@
+CheckingAccount,Structured,overdraft_limit,Numeric
+CheckingAccount,Structured,checkbook_id,Non Numeric

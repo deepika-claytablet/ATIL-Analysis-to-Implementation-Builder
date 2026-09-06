@@ -193,8 +193,11 @@ export class AQLConsole {
       <option value="agg_sum">2. Aggregation SUM() with GROUP BY</option>
       <option value="group_by_having">3. GROUP BY with HAVING Condition</option>
       <option value="where_filter">4. Filtering with WHERE Clause</option>
-      <option value="create_view">5. CREATE VIEW on AQL Query</option>
-      <option value="invalid_demo">6. Invalid Demo (Semantic Violation)</option>
+      <option value="union_sample">5. Set Operation: UNION of Two Queries</option>
+      <option value="intersect_sample">6. Set Operation: INTERSECT of Two Queries</option>
+      <option value="except_sample">7. Set Operation: EXCEPT of Two Queries</option>
+      <option value="create_view">8. CREATE VIEW on AQL Query</option>
+      <option value="invalid_demo">9. Invalid Demo (Semantic Violation)</option>
     `;
 
     // Store sample query texts
@@ -203,6 +206,9 @@ export class AQLConsole {
       agg_sum: `SELECT S.${adatAttr}, P.${panAttr}, SUM(S.${adatAttr}) AS total_metric\nFROM ${adatName} S, S.${panName} P\nGROUP BY S.${adatAttr}, P.${panAttr}`,
       group_by_having: `SELECT S.${adatAttr}, P.${panAttr}, SUM(S.${adatAttr}) AS total_metric\nFROM ${adatName} S, S.${panName} P\nGROUP BY S.${adatAttr}, P.${panAttr}\nHAVING SUM(S.${adatAttr}) > 1000`,
       where_filter: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 100`,
+      union_sample: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 500\nUNION\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE P.${panAttr} = 'Beverage'`,
+      intersect_sample: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 200\nINTERSECT\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} < 800`,
+      except_sample: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 100\nEXCEPT\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 500`,
       create_view: `CREATE VIEW HighValueMetrics AS\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 5000`,
       invalid_demo: `SELECT S.non_existent_attribute, P.${panAttr}\nFROM ${adatName} S, S.InvalidPan P`,
       generic_sample: `SELECT S.value, P.wattage\nFROM Sales S, S.Product P\nWHERE P.wattage = 20`

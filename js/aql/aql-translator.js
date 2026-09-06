@@ -1,19 +1,29 @@
 /**
  * aql-translator.js
- * Translates verified AQL queries to standard Relational SQL
- * based on the underlying schema's star/relational mappings:
- *   - ADAT tables (Fact/Entity relations)
- *   - Dimension tables (Dim_<Pan>)
- *   - Surrogate keys (<Pan>_SK) and foreign key joins
- *   - Aggregations, GROUP BY, WHERE, and ORDER BY
+ * Translates verified AQL AST into Relational Star Schema SQL queries.
+ * Handles single queries as well as compound set operations (UNION, INTERSECT, EXCEPT).
  */
 
-import { NODE_TYPES } from '../schema-model.js';
+import { LINK_TYPES, NODE_TYPES } from '../schema-model.js';
 
 export class AQLTranslator {
-  constructor(model, checkReport) {
+  constructor(model, report) {
     this.model = model;
-    this.report = checkReport;
+    this.report = report;
+    this.buildIndex();
+  }
+
+  buildIndex() {
+    this.adatsByName = new Map();
+    this.pansByName = new Map();
+    this.model.nodes.forEach(node => {
+      const norm = this.normalize(node.name);
+      if (node.type === NODE_TYPES.ADAT) {
+        this.adatsByName.set(norm, node);
+      } else if (node.type === NODE_TYPES.PAN) {
+        this.pansByName.set(norm, node);
+      }
+    });
   }
 
   normalize(str) {
@@ -26,60 +36,102 @@ export class AQLTranslator {
       throw new Error("Cannot translate query that failed semantic checks.");
     }
 
-    // Identify main driving ADAT
-    const adats = Array.from(this.report.participatingADATs);
-    if (adats.length === 0) {
-      throw new Error("Query does not specify an ADAT relation in FROM.");
+    let sql = this.translateSingleQuery(ast);
+
+    // If there are chained set operations: UNION [ALL], INTERSECT, EXCEPT
+    if (ast.setOperations && ast.setOperations.length > 0) {
+      ast.setOperations.forEach(setOp => {
+        const subSql = this.translateSingleQuery(setOp.query);
+        sql += `\n\n${setOp.op}\n\n${subSql}`;
+      });
     }
 
-    const mainAdat = adats[0];
-    const mainAdatName = mainAdat.name.trim().replace(/[\s\-]+/g, '_');
-    
-    // Find alias for main ADAT
-    let adatAlias = mainAdatName;
-    for (const [alias, info] of this.report.iterators.entries()) {
-      if (info.kind === 'ADAT' && info.node.id === mainAdat.id) {
-        adatAlias = info.alias || alias;
-        break;
+    sql += ';';
+
+    if (ast.isView && ast.viewName) {
+      sql = `CREATE VIEW ${ast.viewName} AS\n${sql}`;
+    }
+
+    return sql;
+  }
+
+  translateSingleQuery(queryAst) {
+    // Identify driving ADAT and PAN iterators for this specific subquery
+    let mainAdatName = '';
+    let adatAlias = '';
+    const panIterators = [];
+
+    queryAst.from.forEach(item => {
+      const parts = item.chain.parts;
+      const firstNorm = this.normalize(parts[0]);
+      const rawAlias = item.alias ? item.alias : parts[parts.length - 1];
+      const normAlias = this.normalize(rawAlias);
+
+      const directAdat = this.adatsByName.get(firstNorm);
+      if (directAdat && parts.length === 1) {
+        if (!mainAdatName) {
+          mainAdatName = directAdat.name.trim().replace(/[\s\-]+/g, '_');
+          adatAlias = rawAlias;
+        }
+        return;
+      }
+
+      // Check if parts[0] is alias or ADAT with remaining PAN chain
+      if (parts.length > 1) {
+        const panNames = parts.slice(1);
+        const panChain = [];
+        panNames.forEach(pn => {
+          const p = this.pansByName.get(this.normalize(pn));
+          if (p) panChain.push(p);
+        });
+        if (panChain.length > 0) {
+          panIterators.push({ alias: normAlias, targetAlias: rawAlias, panChain });
+        }
+      }
+    });
+
+    if (!mainAdatName) {
+      const firstAdat = Array.from(this.adatsByName.values())[0];
+      if (firstAdat) {
+        mainAdatName = firstAdat.name.trim().replace(/[\s\-]+/g, '_');
+        adatAlias = mainAdatName;
+      } else {
+        mainAdatName = 'FactTable';
+        adatAlias = 'S';
       }
     }
 
     // Build SELECT projections
-    const selectClauses = ast.select.map(item => this.translateSelectItem(item, adatAlias)).join(',\n       ');
+    const selectClauses = queryAst.select.map(item => this.translateSelectItem(item, adatAlias)).join(',\n       ');
 
     // Build FROM and JOINs
     let fromClause = `${mainAdatName} ${adatAlias}`;
     const joins = [];
     const joinedPanIds = new Set();
 
-    // Iterate through PAN iterators defined in query
-    for (const [alias, info] of this.report.iterators.entries()) {
-      if (info.kind === 'PAN') {
-        const panChain = info.chain;
-        const targetAlias = info.alias || alias;
+    panIterators.forEach(info => {
+      const panChain = info.panChain;
+      const targetAlias = info.targetAlias;
 
-        for (let i = 0; i < panChain.length; i++) {
-          const pan = panChain[i];
-          if (joinedPanIds.has(pan.id)) continue;
-          joinedPanIds.add(pan.id);
+      for (let i = 0; i < panChain.length; i++) {
+        const pan = panChain[i];
+        if (joinedPanIds.has(pan.id)) continue;
+        joinedPanIds.add(pan.id);
 
-          const panName = pan.name.trim().replace(/[\s\-]+/g, '_');
-          const dimTable = `Dim_${panName}`;
-          const currentAlias = (i === panChain.length - 1) ? targetAlias : `${panName.toLowerCase()}_dim`;
+        const panName = pan.name.trim().replace(/[\s\-]+/g, '_');
+        const dimTable = `Dim_${panName}`;
+        const currentAlias = (i === panChain.length - 1) ? targetAlias : `${panName.toLowerCase()}_dim`;
 
-          if (i === 0) {
-            // Join first PAN to Fact/ADAT table
-            joins.push(`INNER JOIN ${dimTable} ${currentAlias} ON ${currentAlias}.${panName}_SK = ${adatAlias}.${panName}_SK`);
-          } else {
-            // Join child PAN to parent PAN
-            const parentPan = panChain[i - 1];
-            const parentPanName = parentPan.name.trim().replace(/[\s\-]+/g, '_');
-            const parentAlias = (i - 1 === panChain.length - 1) ? targetAlias : `${parentPanName.toLowerCase()}_dim`;
-            joins.push(`INNER JOIN ${dimTable} ${currentAlias} ON ${currentAlias}.${panName}_SK = ${parentAlias}.${panName}_SK`);
-          }
+        if (i === 0) {
+          joins.push(`INNER JOIN ${dimTable} ${currentAlias} ON ${currentAlias}.${panName}_SK = ${adatAlias}.${panName}_SK`);
+        } else {
+          const parentPan = panChain[i - 1];
+          const parentPanName = parentPan.name.trim().replace(/[\s\-]+/g, '_');
+          const parentAlias = (i - 1 === panChain.length - 1) ? targetAlias : `${parentPanName.toLowerCase()}_dim`;
+          joins.push(`INNER JOIN ${dimTable} ${currentAlias} ON ${currentAlias}.${panName}_SK = ${parentAlias}.${panName}_SK`);
         }
       }
-    }
+    });
 
     let fullFrom = fromClause;
     if (joins.length > 0) {
@@ -88,36 +140,30 @@ export class AQLTranslator {
 
     // Build WHERE clause
     let whereClause = '';
-    if (ast.where) {
-      whereClause = '\nWHERE ' + this.translateExpression(ast.where, adatAlias);
+    if (queryAst.where) {
+      whereClause = '\nWHERE ' + this.translateExpression(queryAst.where, adatAlias);
     }
 
     // Build GROUP BY clause
     let groupByClause = '';
-    if (ast.groupBy && ast.groupBy.length > 0) {
-      groupByClause = '\nGROUP BY ' + ast.groupBy.map(expr => this.translateExpression(expr, adatAlias)).join(', ');
+    if (queryAst.groupBy && queryAst.groupBy.length > 0) {
+      groupByClause = '\nGROUP BY ' + queryAst.groupBy.map(expr => this.translateExpression(expr, adatAlias)).join(', ');
     }
 
     // Build HAVING clause
     let havingClause = '';
-    if (ast.having) {
-      havingClause = '\nHAVING ' + this.translateExpression(ast.having, adatAlias);
+    if (queryAst.having) {
+      havingClause = '\nHAVING ' + this.translateExpression(queryAst.having, adatAlias);
     }
 
     // Build ORDER BY clause
     let orderByClause = '';
-    if (ast.orderBy && ast.orderBy.length > 0) {
-      orderByClause = '\nORDER BY ' + ast.orderBy.map(item => `${this.translateExpression(item.expr, adatAlias)} ${item.direction}`).join(', ');
+    if (queryAst.orderBy && queryAst.orderBy.length > 0) {
+      orderByClause = '\nORDER BY ' + queryAst.orderBy.map(item => `${this.translateExpression(item.expr, adatAlias)} ${item.direction}`).join(', ');
     }
 
-    const distinctStr = ast.isDistinct ? 'DISTINCT ' : '';
-    let sql = `SELECT ${distinctStr}${selectClauses}\nFROM ${fullFrom}${whereClause}${groupByClause}${havingClause}${orderByClause};`;
-    
-    if (ast.isView && ast.viewName) {
-      sql = `CREATE VIEW ${ast.viewName} AS\n${sql}`;
-    }
-
-    return sql;
+    const distinctStr = queryAst.isDistinct ? 'DISTINCT ' : '';
+    return `SELECT ${distinctStr}${selectClauses}\nFROM ${fullFrom}${whereClause}${groupByClause}${havingClause}${orderByClause}`;
   }
 
   translateSelectItem(item, defaultAdatAlias) {
@@ -128,52 +174,53 @@ export class AQLTranslator {
       return `${item.func}(${distinctStr}${argStr})${aliasStr}`;
     }
 
-    const exprStr = this.translateExpression(item.expression, defaultAdatAlias);
-    const aliasStr = item.alias ? ` AS ${item.alias}` : '';
-    return `${exprStr}${aliasStr}`;
+    if (item.type === 'PROJECTION') {
+      const exprStr = this.translateExpression(item.expression, defaultAdatAlias);
+      const aliasStr = item.alias ? ` AS ${item.alias}` : '';
+      return `${exprStr}${aliasStr}`;
+    }
+
+    return '';
   }
 
   translateExpression(expr, defaultAdatAlias) {
     if (!expr) return '';
 
-    if (expr.type === 'CHAIN') {
-      return this.translateChain(expr, defaultAdatAlias);
-    }
+    switch (expr.type) {
+      case 'CHAIN':
+        return this.translateChain(expr, defaultAdatAlias);
 
-    if (expr.type === 'AGGREGATE') {
-      const argStr = expr.argument.type === 'STAR' ? '*' : this.translateExpression(expr.argument, defaultAdatAlias);
-      return `${expr.func}(${argStr})`;
-    }
+      case 'AGGREGATE':
+        const distinctStr = expr.distinct ? 'DISTINCT ' : '';
+        const argStr = expr.argument.type === 'STAR' ? '*' : this.translateExpression(expr.argument, defaultAdatAlias);
+        return `${expr.func}(${distinctStr}${argStr})`;
 
-    if (expr.type === 'COMPARISON') {
-      return `${this.translateExpression(expr.left, defaultAdatAlias)} ${expr.op} ${this.translateExpression(expr.right, defaultAdatAlias)}`;
-    }
+      case 'LITERAL':
+        if (typeof expr.value === 'string') {
+          return `'${expr.value}'`;
+        }
+        return `${expr.value}`;
 
-    if (expr.type === 'BINARY_OP') {
-      return `${this.translateExpression(expr.left, defaultAdatAlias)} ${expr.op} ${this.translateExpression(expr.right, defaultAdatAlias)}`;
-    }
+      case 'BOOLEAN':
+        return expr.value ? 'TRUE' : 'FALSE';
 
-    if (expr.type === 'BINARY_MATH') {
-      return `${this.translateExpression(expr.left, defaultAdatAlias)} ${expr.op} ${this.translateExpression(expr.right, defaultAdatAlias)}`;
-    }
+      case 'NULL':
+        return 'NULL';
 
-    if (expr.type === 'IS_NULL') {
-      return `${this.translateExpression(expr.expr, defaultAdatAlias)} IS ${expr.not ? 'NOT ' : ''}NULL`;
-    }
+      case 'COMPARISON':
+      case 'BINARY_OP':
+      case 'BINARY_MATH':
+        const left = this.translateExpression(expr.left, defaultAdatAlias);
+        const right = this.translateExpression(expr.right, defaultAdatAlias);
+        return `${left} ${expr.operator} ${right}`;
 
-    if (expr.type === 'LITERAL_STRING') {
-      return `'${expr.value}'`;
-    }
+      case 'IS_NULL':
+        const sub = this.translateExpression(expr.expr, defaultAdatAlias);
+        return expr.not ? `${sub} IS NOT NULL` : `${sub} IS NULL`;
 
-    if (expr.type === 'LITERAL_NUMBER') {
-      return `${expr.value}`;
+      default:
+        return '';
     }
-
-    if (expr.type === 'LITERAL_BOOLEAN') {
-      return expr.value ? 'TRUE' : 'FALSE';
-    }
-
-    return expr.raw || '';
   }
 
   translateChain(chain, defaultAdatAlias) {

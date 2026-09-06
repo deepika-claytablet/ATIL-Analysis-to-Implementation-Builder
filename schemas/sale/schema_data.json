@@ -1,71 +1,71 @@
 {
   "nodes": [
     {
-      "id": "pan_mtdzj9g9_eqz7",
+      "id": "pan_product",
       "type": "PAN",
       "name": "Product",
       "attributes": [
         {
-          "id": "pan_attr_mtdzjk3j_ditz",
+          "id": "pan_attr_name",
           "name": "name",
           "updateType": "UPDATE"
         },
         {
-          "id": "pan_attr_mtdzjt1l_99yi",
+          "id": "pan_attr_color",
           "name": "color",
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 1090,
-      "y": 20,
+      "x": 800,
+      "y": 40,
       "width": 250,
       "height": 169
     },
     {
-      "id": "pan_mtdzk6r1_9inq",
+      "id": "pan_non_perishable",
       "type": "PAN",
       "name": "non perishable",
       "attributes": [
         {
-          "id": "pan_attr_mtdzkztq_k42j",
+          "id": "pan_attr_np_1",
           "name": "attr_1",
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 880,
-      "y": 310,
+      "x": 650,
+      "y": 300,
       "width": 250,
       "height": 133
     },
     {
-      "id": "pan_mtdzl56d_r4ui",
+      "id": "pan_perishable",
       "type": "PAN",
       "name": "Perishable",
       "attributes": [
         {
-          "id": "pan_attr_mtnxzfwp_qi67",
+          "id": "pan_attr_p_1",
           "name": "attr_1",
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 1200,
-      "y": 310,
+      "x": 950,
+      "y": 300,
       "width": 250,
       "height": 133
     },
     {
-      "id": "adat_mtdzlzhl_bik9",
+      "id": "adat_sale",
       "type": "ADAT",
       "name": "sale",
       "nature": "Structured",
       "attributes": [
         {
-          "id": "attr_mtdzmh4m_v2mg",
+          "id": "attr_value",
           "name": "value",
           "dataKind": "Numeric"
         }
       ],
-      "x": 320,
+      "x": 200,
       "y": 40,
       "width": 250,
       "height": 208
@@ -73,9 +73,9 @@
   ],
   "edges": [
     {
-      "id": "edge_mtdzljm1_rwdo",
-      "sourceId": "pan_mtdzk6r1_9inq",
-      "targetId": "pan_mtdzj9g9_eqz7",
+      "id": "edge_np_product",
+      "sourceId": "pan_non_perishable",
+      "targetId": "pan_product",
       "linkType": "UML_INHERITANCE",
       "adatMultiplicity": "",
       "panMultiplicity": "",
@@ -86,9 +86,9 @@
       "waypoint": null
     },
     {
-      "id": "edge_mtdzloqr_eg03",
-      "sourceId": "pan_mtdzl56d_r4ui",
-      "targetId": "pan_mtdzj9g9_eqz7",
+      "id": "edge_p_product",
+      "sourceId": "pan_perishable",
+      "targetId": "pan_product",
       "linkType": "UML_INHERITANCE",
       "adatMultiplicity": "",
       "panMultiplicity": "",
@@ -99,9 +99,9 @@
       "waypoint": null
     },
     {
-      "id": "edge_mtdzr9vt_hzk6",
-      "sourceId": "adat_mtdzlzhl_bik9",
-      "targetId": "pan_mtdzj9g9_eqz7",
+      "id": "edge_sale_product",
+      "sourceId": "adat_sale",
+      "targetId": "pan_product",
       "linkType": "SOLID",
       "adatMultiplicity": "*",
       "panMultiplicity": "*",
