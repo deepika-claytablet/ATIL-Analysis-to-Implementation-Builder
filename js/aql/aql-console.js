@@ -97,7 +97,7 @@ export class AQLConsole {
     this.btnTranslate?.addEventListener('click', () => this.runTranslate());
     this.btnClear?.addEventListener('click', () => {
       if (this.queryInput) this.queryInput.value = '';
-      if (this.checkerResultsOutput) this.checkerResultsOutput.innerHTML = '<div class="aql-empty-output">Click "Check AQL syntax" to evaluate query.</div>';
+      if (this.checkerResultsOutput) this.checkerResultsOutput.innerHTML = '<div class="aql-empty-output">Click "Check AQL" to evaluate query.</div>';
       if (this.sqlCodeOutput) this.sqlCodeOutput.textContent = '-- SQL translation will appear here';
     });
 
