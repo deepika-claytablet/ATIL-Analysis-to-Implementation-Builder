@@ -1,2 +1,0 @@
-KYCDocuments,Unstructured,doc_id,Numeric
-KYCDocuments,Unstructured,raw_payload,Non Numeric

@@ -1,2 +1,0 @@
-SavingsAccount,Structured,interest_rate,Numeric
-SavingsAccount,Structured,min_balance,Numeric

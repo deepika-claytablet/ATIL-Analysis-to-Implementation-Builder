@@ -1,4 +1,0 @@
-Account,account_number,PAN_Account_Access,True,1..* 1,True
-Account,holder_name,PAN_Account_Access,True,1..* 1,True
-Account,balance,PAN_Account_Access,True,1..* 1,True
-Account,opened_date,PAN_Account_Access,True,1..* 1,True

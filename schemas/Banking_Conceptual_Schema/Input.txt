@@ -1,2 +1,0 @@
-pan,PAN_Account_Access,atomic
-adat,CustomerPortfolio,complex1,mixed

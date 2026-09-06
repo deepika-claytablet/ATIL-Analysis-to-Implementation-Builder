@@ -1,2 +1,0 @@
-AuditTrail,Structured,log_id,Numeric
-AuditTrail,Structured,action_summary,Non Numeric
