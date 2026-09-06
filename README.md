@@ -1,46 +1,127 @@
-# ADAPT: Conceptual Schema Builder & AQL Query Engine
+# ATIL: Analysis-to-Implementation Builder for ADAPT Schemas & AQL Engine
 
-A visual modeling and multidimensional analysis tool for **ADAPT** conceptual schemas using **PAN** (Primary Access Node) and **ADAT** (Abstract Data Type) entities, complete with the **AQL (ADAPT Query Language)** parser, semantic checker, and relational SQL translator.
+**ATIL (Analysis-to-Implementation Layer / Builder)** is an interactive visual modeling system and multidimensional query translation engine built for the **ADAPT** conceptual modeling methodology and the **AQL (ADAPT Query Language)** query algebra.
+
+This repository contains the full source code, semantic verification engine, relational SQL translator, and default sample schema (`sale`) accompanying the research paper.
 
 ---
 
-## 🌟 Key Features
+## 🌟 1. Conceptual Schema Visual Modeling
 
-### 1. Conceptual Schema Visual Modeling
-- **ADAT (Abstract Data Type)**:
+ATIL models multidimensional data warehouses and analytical databases through two core conceptual entities and five formal relationship line types:
+
+### Core Conceptual Nodes
+- **ADAT (Abstract Data Type / Analysis Data)**:
   - Supports **Structured** and **Unstructured** natures.
-  - Attributes with **Numeric** and **Non Numeric** data kinds.
-- **PAN (Parameteres of ANalysis)**:
-  - Parameters of ANalysis with `UPDATE` / `NO UPDATE` attribute semantics.
-- **5 Relationship / Connection Line Types**:
-  1. **ISAB (`──────` Solid Line)**: Connects ADAT $\leftrightarrow$ PAN with *Additivity* (`True`/`False`) and *Applicability* (`True`/`False`) properties.
-  2. **Specialization (`───▷` UML Inheritance Triangle)**: Connects specialized entities to parent.
-  3. **Derived (`───▷[D]` Triangle with "D")**: Disjoint / Derived hierarchies.
-  4. **Container (`───▷[C]` Triangle with "C")**: Containment hierarchies.
-  5. **Complex (`───◇` Aggregation Diamond)**: Complex aggregation hierarchies.
+  - Attributes parameterized by **Numeric** and **Non Numeric** data kinds.
+- **PAN (Parameters of ANalysis / Access Nodes)**:
+  - Dimensional analysis parameters with attribute update semantics (**UPDATE** / **NO UPDATE**).
 
-### 2. AQL (ADAPT Query Language) Engine
-- **OQL-Based Dialect**: Write expressive multidimensional queries on conceptual schemas.
-- **Semantic Checker**: Enforces analysis semantics:
-  - **ADAT Reference Chains**: Validates atomic, leaf specialization, derived, complex, and container chains.
-  - **PAN Reference Chains**: Verifies ISAB relationships, hierarchy branches, and container applicability.
-  - **Aggregations (`SUM`, `AVG`, etc.)**: Ensures $\text{Additivity} = \text{TRUE}$ for summation and verifies participating PANs.
-  - **GROUP BY Compliance**: Validates projection coverage against grouping expressions.
-  - **Views**: Supports `CREATE VIEW <view_name> AS <valid AQL query>`.
-- **Relational SQL Translator**: Converts verified AQL statements into relational SQL queries with dimension joins on surrogate keys.
-
-### 3. Star Relational Conversion
-- Converts conceptual schemas into relational star schemas (`output.sql`).
-- Generates structured schema folders under `schemas/<schema_name>/`.
+### Relationship Notations & Visual Connectors
+1. **ISAB (`──────` Solid Line)**:
+   - Connects `ADAT ↔ PAN` with multidimensional metadata: **Additivity** (`True`/`False`), **Applicability** (`True`/`False`), and Multiplicity (`*`, `1..*`).
+2. **Specialization (`───▷` UML Inheritance Triangle)**:
+   - Specialization hierarchy pointing to parent entity.
+3. **Derived (`───▷[D]` Triangle with "D")**:
+   - Disjoint / Derived analytical hierarchies.
+4. **Container (`───▷[C]` Triangle with "C")**:
+   - Encapsulation / Containment hierarchies (single child per parent).
+5. **Complex (`───◇` Aggregation Diamond)**:
+   - Complex component aggregation hierarchies.
 
 ---
 
-## 🚀 How to Run
+## 📐 2. Structural Validity Rules Enforced
 
-1. Open PowerShell or terminal in the project directory:
-   ```powershell
-   cd conceptual-schema-builder
+The tool enforces rigorous structural constraints during diagram construction and analysis:
+- **Parent ADAT Consistency**: A parent ADAT node in a hierarchy cannot mix connection types; once a hierarchy type is established, all children must share that type, and the only other relationship the parent can participate in is ISAB.
+- **Specialization ADAT Trees**: Only **leaf-level ADATs** can be linked via ISAB to a PAN. Non-leaf parent ADATs are blocked from direct ISAB linkages.
+- **Derived ADAT Trees**: Leaf-level ADATs cannot be linked via ISAB to a PAN; only the base/root ADATs participate in ISAB.
+- **Containment Rule**: Each parent container node (for both ADAT and PAN) can have at most one child.
+
+---
+
+## 🔍 3. AQL (ADAPT Query Language) Engine
+
+**AQL** is an OQL-based analytical query language enabling declarative querying over ADAPT conceptual schemas.
+
+### 3.1 Semantic Checker
+Enforces multidimensional analysis semantics:
+- **ADAT Reference Chains ($A_1.A_2 \dots A_n.a$)**:
+  - Validates atomic attributes, leaf specialization constraints, derived branches, complex aggregations, and container extractions.
+- **PAN Reference Chains ($A.P_1.P_2 \dots P_n.p$)**:
+  - Validates ISAB existence, complex/specialization hierarchy paths, and container applicability conditions ($\text{Applicability} = \text{TRUE}$).
+- **Aggregation Checks**:
+  - Summation (`SUM`) is permitted only if the attribute belongs to an ISAB relationship with $\text{Additivity} = \text{TRUE}$.
+  - Verifies that all participating PANs analyse the target ADAT.
+- **GROUP BY Compliance**:
+  - When `GROUP BY` is present, all non-aggregate projections in `SELECT` must be included in the `GROUP BY` list.
+- **Set Operations**:
+  - Full support for **`UNION`** (and `UNION ALL`), **`INTERSECT`**, and **`EXCEPT`** with projection compatibility validation.
+- **Views**:
+  - Declarative view definitions via `CREATE VIEW <name> AS <query>`.
+
+### 3.2 Relational SQL Translator
+- Translates verified AQL queries into executable ANSI SQL / Relational Star Schemas.
+- Generates Fact tables, dimension tables (`Dim_<Pan>`), surrogate key joins (`<Pan>_SK`), `WHERE` filters, `GROUP BY`, `HAVING`, and set operations (`UNION`, `INTERSECT`, `EXCEPT`).
+
+---
+
+## 🗂️ 4. Project Structure
+
+```text
+├── index.html                  # Main Web Application Interface
+├── server.py                   # Lightweight Local Python HTTP Server & Java Bridge
+├── README.md                   # System Documentation
+├── .gitignore                  # Git Ignore Configuration
+├── css/
+│   └── style.css               # Clean Layout, Drawer, & AQL Console Styling
+├── js/
+│   ├── app.js                  # Application Orchestrator & State Manager
+│   ├── canvas.js               # Interactive SVG/DOM Canvas Engine
+│   ├── schema-model.js         # Core ADAPT Conceptual Model & Validation Rules
+│   ├── templates.js            # Default Sample Schemas (sale)
+│   ├── inspector.js            # Node & Edge Property Inspector
+│   ├── image-exporter.js       # Diagram Exporter (PNG/SVG/JPEG/ISAB text)
+│   ├── db-converters.js        # Star Relational Schema Generator
+│   └── aql/
+│       ├── aql-parser.js       # Lexer, Tokenizer, & AST Parser for AQL
+│       ├── aql-checker.js      # Semantic Multidimensional Rules Checker
+│       ├── aql-translator.js   # AQL-to-SQL Relational Translator
+│       └── aql-console.js      # Resizable Bottom Drawer & UI Controller
+├── schemas/
+│   └── sale/                   # Clean Retail Sales Sample Schema
+└── src/main/java/              # Java Backend for Star Schema Relational Conversion
+```
+
+---
+
+## 🚀 5. Quick Start & Reproducibility
+
+### Prerequisites
+- Python 3.8+
+- Java JDK 17 (optional, for standalone Java DDL generation)
+- Any modern web browser (Chrome, Firefox, Edge, Safari)
+
+### Running Locally
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/deepika-claytablet/ATIL-Analysis-to-Implementation-Builder.git
+   cd ATIL-Analysis-to-Implementation-Builder
+   ```
+
+2. Start the local server:
+   ```bash
    python server.py
    ```
-2. Open your web browser at **`http://localhost:8080/index.html`**.
-3. Use the top toolbar to model schemas, save diagrams, convert to relational SQL, or launch the **AQL** console.
+
+3. Open your browser at:
+   ```text
+   http://localhost:8080/index.html
+   ```
+
+4. **Testing AQL Queries**:
+   - Click the **AQL** button in the top toolbar to open the resizable query drawer.
+   - Select any sample query from the **`-- Load Sample AQL Query --`** dropdown (Projections, Aggregations with `GROUP BY / HAVING`, `UNION`, `INTERSECT`, `EXCEPT`, or `CREATE VIEW`).
+   - Click **"Check AQL"** to run semantic verification.
+   - Click **"Translate to SQL"** to generate the translated relational SQL query.
