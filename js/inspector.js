@@ -119,8 +119,8 @@ export class InspectorPanel {
       <div class="attr-item-edit" data-attr-id="${attr.id}">
         <input type="text" class="pan-attr-name-input" value="${this.escapeHtml(attr.name)}" placeholder="attribute_name">
         <select class="pan-attr-update-select" title="Update Option">
-          <option value="${UPDATE_TYPES.UPDATE}" ${(attr.updateType || UPDATE_TYPES.UPDATE) === UPDATE_TYPES.UPDATE ? 'selected' : ''}>UPDATE</option>
-          <option value="${UPDATE_TYPES.NO_UPDATE}" ${(attr.updateType || UPDATE_TYPES.UPDATE) === UPDATE_TYPES.NO_UPDATE ? 'selected' : ''}>NO UPDATE</option>
+          <option value="${UPDATE_TYPES.NO_UPDATE}" ${(attr.updateType || UPDATE_TYPES.NO_UPDATE) === UPDATE_TYPES.NO_UPDATE ? 'selected' : ''}>NO UPDATE</option>
+          <option value="${UPDATE_TYPES.UPDATE}" ${(attr.updateType || UPDATE_TYPES.NO_UPDATE) === UPDATE_TYPES.UPDATE ? 'selected' : ''}>UPDATE</option>
         </select>
         <button class="btn-remove-attr btn-remove-pan-attr" title="Delete Attribute" data-attr-id="${attr.id}">✕</button>
       </div>
@@ -161,7 +161,7 @@ export class InspectorPanel {
       attrs.push({
         id: this.model.generateId('pan_attr'),
         name: `attr_${attrs.length + 1}`,
-        updateType: UPDATE_TYPES.UPDATE
+        updateType: UPDATE_TYPES.NO_UPDATE
       });
       this.model.updateNode(node.id, { attributes: attrs });
       this.renderPANForm(node);
@@ -350,9 +350,14 @@ export class InspectorPanel {
       targetRoleLabel = 'Parent';
     }
 
-    // Determine normalized PAN multiplicity ('one' or 'many')
+    // Determine normalized PAN multiplicity ('one' or 'many' or empty)
     const currentPanMulti = (edge.panMultiplicity || '').trim().toLowerCase();
-    const panMultiValue = (currentPanMulti === '*' || currentPanMulti === 'many' || currentPanMulti === '1..*') ? 'many' : 'one';
+    let panMultiValue = '';
+    if (currentPanMulti === '*' || currentPanMulti === 'many' || currentPanMulti === '1..*') {
+      panMultiValue = 'many';
+    } else if (currentPanMulti === '1' || currentPanMulti === 'one' || currentPanMulti === '0..1') {
+      panMultiValue = 'one';
+    }
 
     if (isISAB) {
       edge.adatMultiplicity = 'many';
@@ -360,17 +365,18 @@ export class InspectorPanel {
     }
 
     // ISAB Properties Section:
-    // 1a. Adat Multiplicity: Always many, unchangeable, displayed to user
-    // 1b. Pan Multiplicity: Dropdown with two values 'one' and 'many'
+    // 1a. Adat Multiplicity: Always many, unchangeable, displayed to user with compact text size
+    // 1b. Pan Multiplicity: Dropdown with 'one' and 'many' (empty if not selected yet)
     const isabPropertiesSection = isISAB ? `
       <div class="form-group-row">
         <div class="form-group">
           <label>Adat Multiplicity</label>
-          <input type="text" id="edge-input-adat-multi" class="form-control" value="many" readonly disabled style="background:var(--bg-panel-subtle, #F1F5F9); cursor:not-allowed; font-weight:600; color:var(--text-main, #334155);" title="Adat cardinality is fixed to 'many'">
+          <input type="text" id="edge-input-adat-multi" class="form-control" value="many" readonly disabled style="background:var(--bg-panel-subtle, #F1F5F9); cursor:not-allowed; font-weight:700; color:var(--text-main, #334155); width:68px; text-align:center;" title="Adat cardinality is fixed to 'many'">
         </div>
         <div class="form-group">
           <label>Pan Multiplicity</label>
           <select id="edge-input-pan-multi" class="form-control">
+            <option value="" ${!panMultiValue ? 'selected disabled' : ''}>-- Select --</option>
             <option value="one" ${panMultiValue === 'one' ? 'selected' : ''}>one</option>
             <option value="many" ${panMultiValue === 'many' ? 'selected' : ''}>many</option>
           </select>

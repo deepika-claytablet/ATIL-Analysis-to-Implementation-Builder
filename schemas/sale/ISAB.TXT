@@ -1,1 +1,1 @@
-sale,value,Product,True,* *,True
+sale,value,non_perishable,True,many many,True

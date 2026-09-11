@@ -113,12 +113,16 @@ export class SchemaModel {
     const index = Array.from(this.nodes.values()).filter(n => n.type === NODE_TYPES.PAN).length + 1;
     const rawName = customProps.name || `PAN_${index}`;
     
-    // PAN: Name and list of attributes with UPDATE / NO UPDATE option
+    // PAN: Name and list of attributes with default NO UPDATE
     const node = {
       id,
       type: NODE_TYPES.PAN,
       name: rawName.replace(/\s/g, '_'),
-      attributes: (customProps.attributes || []).map(a => ({ ...a, name: (a.name || '').replace(/\s/g, '_') })), // array of { id, name, updateType: 'UPDATE' | 'NO UPDATE' }
+      attributes: (customProps.attributes || []).map(a => ({
+        id: a.id || this.generateId('pan_attr'),
+        name: (a.name || '').replace(/\s/g, '_'),
+        updateType: a.updateType || UPDATE_TYPES.NO_UPDATE
+      })),
       x,
       y,
       width: 250,
@@ -142,7 +146,11 @@ export class SchemaModel {
       type: NODE_TYPES.ADAT,
       name: rawName.replace(/\s/g, '_'),
       nature: customProps.nature || NATURE_TYPES.STRUCTURED,
-      attributes: (customProps.attributes || []).map(a => ({ ...a, name: (a.name || '').replace(/\s/g, '_') })), // array of { id, name, dataKind: 'Numeric' | 'Non Numeric' }
+      attributes: (customProps.attributes || []).map(a => ({
+        id: a.id || this.generateId('attr'),
+        name: (a.name || '').replace(/\s/g, '_'),
+        dataKind: a.dataKind || DATA_KINDS.NON_NUMERIC
+      })),
       x,
       y,
       width: 250,
@@ -158,6 +166,18 @@ export class SchemaModel {
   updateNode(id, patch) {
     const node = this.nodes.get(id);
     if (!node) return null;
+
+    if (patch.name) {
+      patch.name = patch.name.replace(/\s/g, '_');
+    }
+    if (patch.attributes) {
+      patch.attributes = patch.attributes.map(a => ({
+        ...a,
+        name: (a.name || '').replace(/\s/g, '_'),
+        ...(node.type === NODE_TYPES.PAN ? { updateType: a.updateType || UPDATE_TYPES.NO_UPDATE } : {})
+      }));
+    }
+
     Object.assign(node, patch);
     this.recordSnapshot();
     this.notify('node_updated', node);
@@ -208,6 +228,20 @@ export class SchemaModel {
           message: 'ISAB connection is between ADAT and PAN. For PAN to PAN, use Specialization, Container, or Complex.' 
         };
       }
+
+      // Rule 1b: In a Specialization PAN tree, parent PAN (targetId) cannot have ISAB link
+      if (linkType === LINK_TYPES.UML_INHERITANCE) {
+        const parentHasIsab = Array.from(this.edges.values()).some(
+          e => (e.sourceId === targetId || e.targetId === targetId) && e.linkType === LINK_TYPES.SOLID
+        );
+        if (parentHasIsab) {
+          return {
+            valid: false,
+            message: 'In a specialization PAN tree, only the leaf level PANs can be linked via ISAB to an ADAT. Please remove the ISAB link from the parent PAN first.'
+          };
+        }
+      }
+
       // Specialization, Container, Complex are ALLOWED
       return { valid: true };
     }
@@ -224,6 +258,7 @@ export class SchemaModel {
       }
 
       const adatId = source.type === NODE_TYPES.ADAT ? sourceId : targetId;
+      const panId = source.type === NODE_TYPES.PAN ? sourceId : targetId;
 
       // Rule 2a: In a derived ADAT tree, leaf ADATs cannot be linked to any PAN using ISAB
       if (this.isAdatLeafInDerived(adatId)) {
@@ -238,6 +273,14 @@ export class SchemaModel {
         return {
           valid: false,
           message: 'In a specialization ADAT tree, only the leaf level ADATs can be linked via ISAB to a PAN.'
+        };
+      }
+
+      // Rule 2c: In a specialization PAN tree, only leaf level PANs can be linked via ISAB to an ADAT
+      if (this.isPanNonLeafInSpecialization(panId)) {
+        return {
+          valid: false,
+          message: 'In a specialization PAN tree, only the leaf level PANs can be linked via ISAB to an ADAT.'
         };
       }
 
@@ -333,6 +376,16 @@ export class SchemaModel {
     return { valid: true };
   }
 
+  isPanNonLeafInSpecialization(nodeId) {
+    const node = this.nodes.get(nodeId);
+    if (!node || node.type !== NODE_TYPES.PAN) return false;
+
+    // Has children connected to it via UML_INHERITANCE (target is parent)
+    return Array.from(this.edges.values()).some(
+      e => e.targetId === nodeId && e.linkType === LINK_TYPES.UML_INHERITANCE
+    );
+  }
+
   isAdatNonLeafInSpecialization(nodeId) {
     const node = this.nodes.get(nodeId);
     if (!node || node.type !== NODE_TYPES.ADAT) return false;
@@ -374,8 +427,13 @@ export class SchemaModel {
     }
 
     const isISAB = (linkType === LINK_TYPES.SOLID);
-    const rawPanMulti = (props.panMultiplicity || props.targetMultiplicity || '').trim().toLowerCase();
-    const panMultiVal = (rawPanMulti === '*' || rawPanMulti === 'many' || rawPanMulti === '1..*') ? 'many' : (rawPanMulti === '1' || rawPanMulti === 'one' || rawPanMulti === '0..1' ? 'one' : (isISAB ? 'one' : ''));
+    let panMultiVal = '';
+    if (props.panMultiplicity || props.targetMultiplicity) {
+      const raw = (props.panMultiplicity || props.targetMultiplicity).trim().toLowerCase();
+      if (raw === '*' || raw === 'many' || raw === '1..*') panMultiVal = 'many';
+      else if (raw === '1' || raw === 'one' || raw === '0..1') panMultiVal = 'one';
+      else panMultiVal = (props.panMultiplicity || props.targetMultiplicity);
+    }
 
     const id = this.generateId('edge');
     const edge = {
@@ -411,9 +469,6 @@ export class SchemaModel {
 
     if (patch.linkType === LINK_TYPES.SOLID || (!patch.linkType && edge.linkType === LINK_TYPES.SOLID)) {
       patch.adatMultiplicity = 'many';
-      if (!patch.panMultiplicity && !edge.panMultiplicity) {
-        patch.panMultiplicity = 'one';
-      }
     }
 
     Object.assign(edge, patch);
@@ -439,8 +494,22 @@ export class SchemaModel {
 
   toJSON() {
     return {
-      nodes: Array.from(this.nodes.values()),
-      edges: Array.from(this.edges.values())
+      nodes: Array.from(this.nodes.values()).map(n => ({
+        ...n,
+        name: (n.name || '').replace(/\s/g, '_'),
+        attributes: (n.attributes || []).map(a => ({
+          ...a,
+          name: (a.name || '').replace(/\s/g, '_'),
+          ...(n.type === NODE_TYPES.PAN ? { updateType: a.updateType || UPDATE_TYPES.NO_UPDATE } : {})
+        }))
+      })),
+      edges: Array.from(this.edges.values()).map(e => ({
+        ...e,
+        adatMultiplicity: e.linkType === LINK_TYPES.SOLID ? 'many' : (e.adatMultiplicity || ''),
+        panMultiplicity: e.panMultiplicity || '',
+        additivity: e.additivity || BOOLEAN_OPTIONS.TRUE,
+        applicability: e.applicability || e.associativity || BOOLEAN_OPTIONS.TRUE
+      }))
     };
   }
 
@@ -449,13 +518,25 @@ export class SchemaModel {
     this.edges.clear();
 
     if (json.nodes && Array.isArray(json.nodes)) {
-      json.nodes.forEach(n => this.nodes.set(n.id, { ...n }));
+      json.nodes.forEach(n => {
+        const nodeObj = {
+          ...n,
+          name: (n.name || '').replace(/\s/g, '_'),
+          attributes: (n.attributes || []).map(a => ({
+            ...a,
+            name: (a.name || '').replace(/\s/g, '_'),
+            ...(n.type === NODE_TYPES.PAN ? { updateType: a.updateType || UPDATE_TYPES.NO_UPDATE } : {})
+          }))
+        };
+        this.nodes.set(n.id, nodeObj);
+      });
     }
     if (json.edges && Array.isArray(json.edges)) {
       json.edges.forEach(e => {
+        const isISAB = (e.linkType === LINK_TYPES.SOLID);
         const edgeObj = {
           ...e,
-          adatMultiplicity: e.adatMultiplicity || e.sourceMultiplicity || '',
+          adatMultiplicity: isISAB ? 'many' : (e.adatMultiplicity || e.sourceMultiplicity || ''),
           panMultiplicity: e.panMultiplicity || e.targetMultiplicity || '',
           additivity: e.additivity || BOOLEAN_OPTIONS.TRUE,
           applicability: e.applicability || e.associativity || BOOLEAN_OPTIONS.TRUE

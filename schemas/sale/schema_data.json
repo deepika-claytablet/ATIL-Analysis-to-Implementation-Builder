@@ -66,7 +66,7 @@
         }
       ],
       "x": 200,
-      "y": 40,
+      "y": 300,
       "width": 250,
       "height": 208
     }
@@ -99,9 +99,9 @@
       "waypoint": null
     },
     {
-      "id": "edge_sale_product",
+      "id": "edge_sale_np",
       "sourceId": "adat_sale",
-      "targetId": "pan_product",
+      "targetId": "pan_non_perishable",
       "linkType": "SOLID",
       "adatMultiplicity": "many",
       "panMultiplicity": "many",

@@ -57,7 +57,7 @@ export const SAMPLE_SCHEMAS = {
           { id: 'attr_value', name: 'value', dataKind: DATA_KINDS.NUMERIC }
         ],
         x: 200,
-        y: 40,
+        y: 300,
         width: 250,
         height: 170
       }
@@ -90,9 +90,9 @@ export const SAMPLE_SCHEMAS = {
         waypoint: null
       },
       {
-        id: 'edge_sale_product',
+        id: 'edge_sale_np',
         sourceId: 'adat_sale',
-        targetId: 'pan_product',
+        targetId: 'pan_non_perishable',
         linkType: LINK_TYPES.SOLID,
         adatMultiplicity: 'many',
         panMultiplicity: 'many',

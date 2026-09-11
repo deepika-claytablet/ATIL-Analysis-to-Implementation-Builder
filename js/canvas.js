@@ -247,11 +247,13 @@ export class CanvasEngine {
 
     const handleDragOver = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'copy';
     };
 
     const handleDrop = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       const nodeType = e.dataTransfer.getData('application/schema-node-type');
       if (!nodeType) return;
 
@@ -273,9 +275,6 @@ export class CanvasEngine {
 
     this.container.addEventListener('dragover', handleDragOver);
     this.container.addEventListener('drop', handleDrop);
-
-    this.viewport?.addEventListener('dragover', handleDragOver);
-    this.viewport?.addEventListener('drop', handleDrop);
   }
 
   // --- Canvas Selection ---

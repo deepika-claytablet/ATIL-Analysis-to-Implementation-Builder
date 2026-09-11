@@ -381,7 +381,7 @@ export class ImageExporter {
       } else {
         attrs.forEach(attr => {
           const attrName = this.formatName(attr.name || '');
-          const updateOpt = (attr.updateType || UPDATE_TYPES.UPDATE).trim();
+          const updateOpt = (attr.updateType || UPDATE_TYPES.NO_UPDATE).trim();
           lines.push(`${panName},${attrName},${updateOpt}`);
         });
       }
@@ -463,9 +463,9 @@ export class ImageExporter {
           const additivity = (edge.additivity || BOOLEAN_OPTIONS.TRUE).trim();
           const applicability = (edge.applicability || edge.associativity || BOOLEAN_OPTIONS.TRUE).trim();
           
-          const adatMulti = (edge.adatMultiplicity || '').trim();
-          const panMulti = (edge.panMultiplicity || '').trim();
-          const multiplicityPair = `${adatMulti} ${panMulti}`.trim() || '1..* 1';
+          const adatMulti = (edge.adatMultiplicity || 'many').trim();
+          const panMulti = (edge.panMultiplicity || 'many').trim();
+          const multiplicityPair = `${adatMulti} ${panMulti}`.trim() || 'many many';
 
           lines.push(`${adatName},${attrName},${panName},${additivity},${multiplicityPair},${applicability}`);
         });
