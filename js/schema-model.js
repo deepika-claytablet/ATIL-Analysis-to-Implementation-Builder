@@ -229,19 +229,6 @@ export class SchemaModel {
         };
       }
 
-      // Rule 1b: In a Specialization PAN tree, parent PAN (targetId) cannot have ISAB link
-      if (linkType === LINK_TYPES.UML_INHERITANCE) {
-        const parentHasIsab = Array.from(this.edges.values()).some(
-          e => (e.sourceId === targetId || e.targetId === targetId) && e.linkType === LINK_TYPES.SOLID
-        );
-        if (parentHasIsab) {
-          return {
-            valid: false,
-            message: 'In a specialization PAN tree, only the leaf level PANs can be linked via ISAB to an ADAT. Please remove the ISAB link from the parent PAN first.'
-          };
-        }
-      }
-
       // Specialization, Container, Complex are ALLOWED
       return { valid: true };
     }
@@ -258,7 +245,6 @@ export class SchemaModel {
       }
 
       const adatId = source.type === NODE_TYPES.ADAT ? sourceId : targetId;
-      const panId = source.type === NODE_TYPES.PAN ? sourceId : targetId;
 
       // Rule 2a: In a derived ADAT tree, leaf ADATs cannot be linked to any PAN using ISAB
       if (this.isAdatLeafInDerived(adatId)) {
@@ -273,14 +259,6 @@ export class SchemaModel {
         return {
           valid: false,
           message: 'In a specialization ADAT tree, only the leaf level ADATs can be linked via ISAB to a PAN.'
-        };
-      }
-
-      // Rule 2c: In a specialization PAN tree, only leaf level PANs can be linked via ISAB to an ADAT
-      if (this.isPanNonLeafInSpecialization(panId)) {
-        return {
-          valid: false,
-          message: 'In a specialization PAN tree, only the leaf level PANs can be linked via ISAB to an ADAT.'
         };
       }
 
@@ -374,16 +352,6 @@ export class SchemaModel {
     }
 
     return { valid: true };
-  }
-
-  isPanNonLeafInSpecialization(nodeId) {
-    const node = this.nodes.get(nodeId);
-    if (!node || node.type !== NODE_TYPES.PAN) return false;
-
-    // Has children connected to it via UML_INHERITANCE (target is parent)
-    return Array.from(this.edges.values()).some(
-      e => e.targetId === nodeId && e.linkType === LINK_TYPES.UML_INHERITANCE
-    );
   }
 
   isAdatNonLeafInSpecialization(nodeId) {

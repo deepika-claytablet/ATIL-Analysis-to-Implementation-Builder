@@ -13,8 +13,8 @@ create table sale (
 value	Numeric,
 sale_Key	varchar(50) PRIMARY KEY
 );
-alter table sale add non_perishable_SK	varchar(50) ;
-alter table sale add foreign key (non_perishable_SK) references Dim_non_perishable(non_perishable_SK);
+alter table sale add Product_SK	varchar(50) ;
+alter table sale add foreign key (Product_SK) references Dim_Product(Product_SK);
 
 create table analysis_property (
 Adat varchar(50), 
@@ -26,12 +26,12 @@ Applicability boolean,
 PRIMARY KEY (Adat, Attribute, Pan)
 ); 
 
-create table Bridge_sale_non_perishable (
+create table Bridge_sale_Product (
 sale_key varchar(50), 
-non_perishable_SK varchar(50), 
-PRIMARY KEY (sale_key, non_perishable_SK)
+Product_SK varchar(50), 
+PRIMARY KEY (sale_key, Product_SK)
 );
-insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'value', 'non_perishable', true, 'many many', true);
+insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'value', 'Product', true, 'many many', true);
 
 create table dependentAdat (
 Adat_dependee varchar(50), 
