@@ -5,6 +5,21 @@
 
 import { LINK_TYPES, LINK_LABELS, NODE_TYPES, DATA_KINDS, NATURE_TYPES, UPDATE_TYPES, BOOLEAN_OPTIONS } from './schema-model.js';
 
+function replaceSpacesWithUnderscores(inputEl) {
+  if (!inputEl) return '';
+  const origVal = inputEl.value;
+  const newVal = origVal.replace(/\s/g, '_');
+  if (origVal !== newVal) {
+    const selStart = inputEl.selectionStart;
+    const selEnd = inputEl.selectionEnd;
+    inputEl.value = newVal;
+    if (selStart !== null && selEnd !== null) {
+      inputEl.setSelectionRange(selStart, selEnd);
+    }
+  }
+  return inputEl.value;
+}
+
 export class InspectorPanel {
   constructor(model, canvasEngine, elements) {
     this.model = model;
@@ -136,7 +151,9 @@ export class InspectorPanel {
     `;
 
     document.getElementById('pan-input-name').addEventListener('input', (e) => {
-      this.model.updateNode(node.id, { name: e.target.value });
+      const val = replaceSpacesWithUnderscores(e.target);
+      this.model.updateNode(node.id, { name: val });
+      this.titleEl.innerHTML = `<span class="node-badge pan-tag">PAN</span> ${this.escapeHtml(node.name)}`;
     });
 
     document.getElementById('btn-add-pan-attr').addEventListener('click', () => {
@@ -169,7 +186,8 @@ export class InspectorPanel {
       if (!attr) return;
 
       input.addEventListener('input', (e) => {
-        attr.name = e.target.value;
+        const val = replaceSpacesWithUnderscores(e.target);
+        attr.name = val;
         this.model.updateNode(node.id, { attributes: node.attributes });
       });
     });
@@ -239,7 +257,9 @@ export class InspectorPanel {
     `;
 
     document.getElementById('adat-input-name').addEventListener('input', (e) => {
-      this.model.updateNode(node.id, { name: e.target.value });
+      const val = replaceSpacesWithUnderscores(e.target);
+      this.model.updateNode(node.id, { name: val });
+      this.titleEl.innerHTML = `<span class="node-badge adat-tag">ADAT</span> ${this.escapeHtml(node.name)}`;
     });
 
     document.getElementById('adat-input-nature').addEventListener('change', (e) => {
@@ -276,7 +296,8 @@ export class InspectorPanel {
       if (!attr) return;
 
       input.addEventListener('input', (e) => {
-        attr.name = e.target.value;
+        const val = replaceSpacesWithUnderscores(e.target);
+        attr.name = val;
         this.model.updateNode(node.id, { attributes: node.attributes });
       });
     });
@@ -329,16 +350,30 @@ export class InspectorPanel {
       targetRoleLabel = 'Parent';
     }
 
-    // ISAB Properties Section: Adat Multiplicity, Pan Multiplicity, Additivity, Applicability
+    // Determine normalized PAN multiplicity ('one' or 'many')
+    const currentPanMulti = (edge.panMultiplicity || '').trim().toLowerCase();
+    const panMultiValue = (currentPanMulti === '*' || currentPanMulti === 'many' || currentPanMulti === '1..*') ? 'many' : 'one';
+
+    if (isISAB) {
+      edge.adatMultiplicity = 'many';
+      edge.panMultiplicity = panMultiValue;
+    }
+
+    // ISAB Properties Section:
+    // 1a. Adat Multiplicity: Always many, unchangeable, displayed to user
+    // 1b. Pan Multiplicity: Dropdown with two values 'one' and 'many'
     const isabPropertiesSection = isISAB ? `
       <div class="form-group-row">
         <div class="form-group">
           <label>Adat Multiplicity</label>
-          <input type="text" id="edge-input-adat-multi" class="form-control" value="${this.escapeHtml(edge.adatMultiplicity || '')}" placeholder="e.g. 1 / * / 1..*">
+          <input type="text" id="edge-input-adat-multi" class="form-control" value="many" readonly disabled style="background:var(--bg-panel-subtle, #F1F5F9); cursor:not-allowed; font-weight:600; color:var(--text-main, #334155);" title="Adat cardinality is fixed to 'many'">
         </div>
         <div class="form-group">
           <label>Pan Multiplicity</label>
-          <input type="text" id="edge-input-pan-multi" class="form-control" value="${this.escapeHtml(edge.panMultiplicity || '')}" placeholder="e.g. 1 / 0..1">
+          <select id="edge-input-pan-multi" class="form-control">
+            <option value="one" ${panMultiValue === 'one' ? 'selected' : ''}>one</option>
+            <option value="many" ${panMultiValue === 'many' ? 'selected' : ''}>many</option>
+          </select>
         </div>
       </div>
 
@@ -430,12 +465,8 @@ export class InspectorPanel {
     });
 
     if (isISAB) {
-      document.getElementById('edge-input-adat-multi')?.addEventListener('input', (e) => {
-        this.model.updateEdge(edge.id, { adatMultiplicity: e.target.value });
-      });
-
-      document.getElementById('edge-input-pan-multi')?.addEventListener('input', (e) => {
-        this.model.updateEdge(edge.id, { panMultiplicity: e.target.value });
+      document.getElementById('edge-input-pan-multi')?.addEventListener('change', (e) => {
+        this.model.updateEdge(edge.id, { panMultiplicity: e.target.value, adatMultiplicity: 'many' });
       });
 
       document.getElementById('edge-input-additivity')?.addEventListener('change', (e) => {

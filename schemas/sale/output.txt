@@ -21,10 +21,16 @@ Adat varchar(50),
 Attribute varchar(50), 
 Pan varchar(50), 
 is_Additive boolean, 
-cardinality varchar(10), 
+cardinality varchar(20), 
 Applicability boolean, 
 PRIMARY KEY (Adat, Attribute, Pan)
 ); 
+
+create table Bridge_sale_Product (
+sale_key varchar(50), 
+Product_SK varchar(50), 
+PRIMARY KEY (sale_key, Product_SK)
+);
 insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'value', 'Product', true, '* *', true);
 
 create table dependentAdat (

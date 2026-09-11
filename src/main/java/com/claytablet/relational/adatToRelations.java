@@ -8,6 +8,7 @@ import com.claytablet.tological.Pan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -17,6 +18,7 @@ public class adatToRelations{
     Adat A;
     public static boolean analysis_property = true;
     public static boolean dependentAdat = true;
+    public static Set<String> createdBridgeTables = new HashSet<>();
     
     public adatToRelations(Adat A){
         this.A =A;
@@ -62,7 +64,7 @@ public class adatToRelations{
         String output="";String AdatName = a.getName();
         if(analysis_property){
             output = output + "\n"+ "\ncreate table analysis_property (\nAdat varchar(50), \nAttribute varchar(50), "
-                + "\nPan varchar(50), \nis_Additive boolean, \ncardinality varchar(10), \nApplicability boolean, \nPRIMARY KEY (Adat, Attribute, Pan)\n); ";
+                + "\nPan varchar(50), \nis_Additive boolean, \ncardinality varchar(20), \nApplicability boolean, \nPRIMARY KEY (Adat, Attribute, Pan)\n); ";
             analysis_property =false;
         }
         
@@ -76,11 +78,26 @@ public class adatToRelations{
             ArrayList next = iterator.next();   
             
             if(AdatName.equalsIgnoreCase(next.get(0).toString())){
+                String adat = next.get(0).toString();
+                String attr = next.get(1).toString();
+                String pan = next.get(2).toString();
+                String rawCard = cardinality.values().toString().replaceAll("[\\[\\](){}]","");
+
+                if (isManyToMany(rawCard)) {
+                    String bridgeTable = "Bridge_" + adat + "_" + pan;
+                    if (!createdBridgeTables.contains(bridgeTable.toLowerCase())) {
+                        createdBridgeTables.add(bridgeTable.toLowerCase());
+                        output = output + "\n\ncreate table " + bridgeTable + " (\n"
+                                + adat + "_key varchar(50), \n"
+                                + pan + "_SK varchar(50), \n"
+                                + "PRIMARY KEY (" + adat + "_key, " + pan + "_SK)\n);";
+                    }
+                }
+
                 String temp ;
-                temp = determineAdditive(next.get(0).toString(),next.get(1).toString(), 
-                        next.get(2).toString(), 
+                temp = determineAdditive(adat, attr, pan, 
                         Boolean.valueOf(isAdditive.values().toString().replaceAll("[\\[\\](){}]","")) , 
-                        cardinality.values().toString().replaceAll("[\\[\\](){}]","") , 
+                        rawCard, 
                         Boolean.valueOf(applicability.values().toString().replaceAll("[\\[\\](){}]","")));
                 output = output + "\n"+ temp;
             }
@@ -122,5 +139,28 @@ public class adatToRelations{
         String insert = "insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('" + AdatName 
                     + "', '"+ adAttr+ "', '" + panName + "', "+ additive + ", "+ cardVal + ", "+ applyTuple +");";
         return insert;
+    }
+
+    public static boolean isManyToMany(String card) {
+        if (card == null) return false;
+        String clean = card.replaceAll("[\\[\\](){}'\"]", "").trim().toLowerCase();
+        if (clean.equals("* *") || clean.equals("many to many") || clean.equals("many many")
+                || clean.equals("*to*") || clean.equals("m:n") || clean.equals("n:m")
+                || clean.equals("many:many") || clean.equals("many-to-many")) {
+            return true;
+        }
+        String[] parts = clean.split("[\\s,;:-]+");
+        if (parts.length >= 2) {
+            boolean firstMany = parts[0].contains("*") || parts[0].contains("many") || parts[0].equals("m") || parts[0].equals("n");
+            boolean secondMany = parts[parts.length - 1].contains("*") || parts[parts.length - 1].contains("many") || parts[parts.length - 1].equals("m") || parts[parts.length - 1].equals("n");
+            if (parts[0].equals("1") || parts[0].equals("one") || parts[0].equals("0..1") || parts[0].equals("1..1")) {
+                firstMany = false;
+            }
+            if (parts[parts.length - 1].equals("1") || parts[parts.length - 1].equals("one") || parts[parts.length - 1].equals("0..1") || parts[parts.length - 1].equals("1..1")) {
+                secondMany = false;
+            }
+            return firstMany && secondMany;
+        }
+        return false;
     }
 }

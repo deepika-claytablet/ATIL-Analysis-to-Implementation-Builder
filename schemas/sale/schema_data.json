@@ -24,7 +24,7 @@
     {
       "id": "pan_non_perishable",
       "type": "PAN",
-      "name": "non perishable",
+      "name": "non_perishable",
       "attributes": [
         {
           "id": "pan_attr_np_1",
@@ -103,8 +103,8 @@
       "sourceId": "adat_sale",
       "targetId": "pan_product",
       "linkType": "SOLID",
-      "adatMultiplicity": "*",
-      "panMultiplicity": "*",
+      "adatMultiplicity": "many",
+      "panMultiplicity": "many",
       "additivity": "True",
       "applicability": "True",
       "sourceAnchor": "right",

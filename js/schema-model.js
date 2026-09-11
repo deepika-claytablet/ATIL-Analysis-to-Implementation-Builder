@@ -111,13 +111,14 @@ export class SchemaModel {
   createPAN(x = 100, y = 100, customProps = {}) {
     const id = this.generateId('pan');
     const index = Array.from(this.nodes.values()).filter(n => n.type === NODE_TYPES.PAN).length + 1;
+    const rawName = customProps.name || `PAN_${index}`;
     
     // PAN: Name and list of attributes with UPDATE / NO UPDATE option
     const node = {
       id,
       type: NODE_TYPES.PAN,
-      name: customProps.name || `PAN_${index}`,
-      attributes: customProps.attributes || [], // array of { id, name, updateType: 'UPDATE' | 'NO UPDATE' }
+      name: rawName.replace(/\s/g, '_'),
+      attributes: (customProps.attributes || []).map(a => ({ ...a, name: (a.name || '').replace(/\s/g, '_') })), // array of { id, name, updateType: 'UPDATE' | 'NO UPDATE' }
       x,
       y,
       width: 250,
@@ -133,14 +134,15 @@ export class SchemaModel {
   createADAT(x = 350, y = 100, customProps = {}) {
     const id = this.generateId('adat');
     const index = Array.from(this.nodes.values()).filter(n => n.type === NODE_TYPES.ADAT).length + 1;
+    const rawName = customProps.name || `ADAT_${index}`;
     
     // ADAT: Nature (Structured/Unstructured) and Attributes list
     const node = {
       id,
       type: NODE_TYPES.ADAT,
-      name: customProps.name || `ADAT_${index}`,
+      name: rawName.replace(/\s/g, '_'),
       nature: customProps.nature || NATURE_TYPES.STRUCTURED,
-      attributes: customProps.attributes || [], // array of { id, name, dataKind: 'Numeric' | 'Non Numeric' }
+      attributes: (customProps.attributes || []).map(a => ({ ...a, name: (a.name || '').replace(/\s/g, '_') })), // array of { id, name, dataKind: 'Numeric' | 'Non Numeric' }
       x,
       y,
       width: 250,
@@ -371,14 +373,18 @@ export class SchemaModel {
       return { edge: existing, error: 'Identical connection already exists.' };
     }
 
+    const isISAB = (linkType === LINK_TYPES.SOLID);
+    const rawPanMulti = (props.panMultiplicity || props.targetMultiplicity || '').trim().toLowerCase();
+    const panMultiVal = (rawPanMulti === '*' || rawPanMulti === 'many' || rawPanMulti === '1..*') ? 'many' : (rawPanMulti === '1' || rawPanMulti === 'one' || rawPanMulti === '0..1' ? 'one' : (isISAB ? 'one' : ''));
+
     const id = this.generateId('edge');
     const edge = {
       id,
       sourceId,
       targetId,
       linkType,
-      adatMultiplicity: props.adatMultiplicity || props.sourceMultiplicity || '',
-      panMultiplicity: props.panMultiplicity || props.targetMultiplicity || '',
+      adatMultiplicity: isISAB ? 'many' : (props.adatMultiplicity || props.sourceMultiplicity || ''),
+      panMultiplicity: isISAB ? panMultiVal : (props.panMultiplicity || props.targetMultiplicity || ''),
       additivity: props.additivity || BOOLEAN_OPTIONS.TRUE,
       applicability: props.applicability || props.associativity || BOOLEAN_OPTIONS.TRUE,
       sourceAnchor: props.sourceAnchor || null,
@@ -400,6 +406,13 @@ export class SchemaModel {
       const val = this.validateConnection(edge.sourceId, edge.targetId, patch.linkType);
       if (!val.valid) {
         return { edge: null, error: val.message };
+      }
+    }
+
+    if (patch.linkType === LINK_TYPES.SOLID || (!patch.linkType && edge.linkType === LINK_TYPES.SOLID)) {
+      patch.adatMultiplicity = 'many';
+      if (!patch.panMultiplicity && !edge.panMultiplicity) {
+        patch.panMultiplicity = 'one';
       }
     }
 

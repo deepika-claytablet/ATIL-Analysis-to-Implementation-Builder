@@ -619,6 +619,9 @@ public class Tological  {
         mixedlist = new HashMap<>();
         mixedlist_col = new HashMap<>();
         output = "";
+        adatToRelations.analysis_property = true;
+        adatToRelations.dependentAdat = true;
+        adatToRelations.createdBridgeTables.clear();
 
         //creating Pan from csv (in the form Pan,attribute, change type)
         createPan();        

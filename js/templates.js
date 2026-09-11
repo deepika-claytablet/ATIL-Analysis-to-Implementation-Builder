@@ -27,7 +27,7 @@ export const SAMPLE_SCHEMAS = {
       {
         id: 'pan_non_perishable',
         type: NODE_TYPES.PAN,
-        name: 'non perishable',
+        name: 'non_perishable',
         attributes: [
           { id: 'pan_attr_np_1', name: 'attr_1', updateType: UPDATE_TYPES.NO_UPDATE }
         ],
@@ -94,8 +94,8 @@ export const SAMPLE_SCHEMAS = {
         sourceId: 'adat_sale',
         targetId: 'pan_product',
         linkType: LINK_TYPES.SOLID,
-        adatMultiplicity: '*',
-        panMultiplicity: '*',
+        adatMultiplicity: 'many',
+        panMultiplicity: 'many',
         additivity: 'True',
         applicability: 'True',
         sourceAnchor: 'right',
