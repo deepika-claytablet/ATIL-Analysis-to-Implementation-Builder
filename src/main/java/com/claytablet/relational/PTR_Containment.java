@@ -22,16 +22,20 @@ public class PTR_Containment extends panToRelations{
         super(P);
     }
     public Boolean getApplicability(Pan pi, AdatAttributeRelationships[] aar){ 
+        if (aar == null || pi == null) return false;
         for(AdatAttributeRelationships j : aar){
+            if (j == null) break;
             HashMap<ArrayList,Boolean> MapApplicability = j.getApplicability();
+            if (MapApplicability == null || MapApplicability.isEmpty()) continue;
             Set<ArrayList> key = MapApplicability.keySet();
             Iterator<ArrayList> iterator = key.iterator();  
+            if (!iterator.hasNext()) continue;
             ArrayList next = iterator.next();
+            if (next == null || next.size() < 3) continue;
             String Panname = pi.getName();
             if(Panname.equalsIgnoreCase(next.get(2).toString())){                
                 return(Boolean.valueOf(MapApplicability.values().toString().replaceAll("[\\[\\](){}]","")));               
             }
-            
         }
         return false;
     }
