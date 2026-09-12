@@ -212,10 +212,149 @@ export class AQLChecker {
     return match ? match.edge : null;
   }
 
-  hasISAB(adatNode, panNode) {
+  getContainerTreeGroup(panNode) {
+    if (!panNode) return [];
+    const group = [panNode];
+    const visited = new Set([panNode.id]);
+    const queue = [panNode];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      if (this.panTreeParents.has(current.id)) {
+        const parentInfo = this.panTreeParents.get(current.id);
+        if (parentInfo.edge.linkType === LINK_TYPES.COMPLETE_C) {
+          const parentNode = this.model.nodes.get(parentInfo.parentId);
+          if (parentNode && !visited.has(parentNode.id)) {
+            visited.add(parentNode.id);
+            group.push(parentNode);
+            queue.push(parentNode);
+          }
+        }
+      }
+
+      const children = this.panTreeChildren.get(current.id) || [];
+      children.forEach(c => {
+        if (c.edge.linkType === LINK_TYPES.COMPLETE_C) {
+          const childNode = this.model.nodes.get(c.childId);
+          if (childNode && !visited.has(childNode.id)) {
+            visited.add(childNode.id);
+            group.push(childNode);
+            queue.push(childNode);
+          }
+        }
+      });
+    }
+
+    return group;
+  }
+
+  getSpecializationTreeGroup(panNode) {
+    if (!panNode) return [];
+    const group = [panNode];
+    const visited = new Set([panNode.id]);
+    const queue = [panNode];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (this.panTreeParents.has(current.id)) {
+        const parentInfo = this.panTreeParents.get(current.id);
+        if (parentInfo.edge.linkType === LINK_TYPES.UML_INHERITANCE) {
+          const parentNode = this.model.nodes.get(parentInfo.parentId);
+          if (parentNode && !visited.has(parentNode.id)) {
+            visited.add(parentNode.id);
+            group.push(parentNode);
+            queue.push(parentNode);
+          }
+        }
+      }
+      const children = this.panTreeChildren.get(current.id) || [];
+      children.forEach(c => {
+        if (c.edge.linkType === LINK_TYPES.UML_INHERITANCE) {
+          const childNode = this.model.nodes.get(c.childId);
+          if (childNode && !visited.has(childNode.id)) {
+            visited.add(childNode.id);
+            group.push(childNode);
+            queue.push(childNode);
+          }
+        }
+      });
+    }
+
+    return group;
+  }
+
+  hasDirectISAB(adatNode, panNode) {
     if (!adatNode || !panNode) return false;
     const pans = this.adatToPans.get(adatNode.id);
     return pans ? pans.has(panNode.id) : false;
+  }
+
+  getContainerISABConnection(adatNode, panNode) {
+    if (!adatNode || !panNode) return null;
+
+    if (this.hasDirectISAB(adatNode, panNode)) {
+      const edge = this.getISABEdge(adatNode, panNode);
+      const isabApp = (edge?.applicability || BOOLEAN_OPTIONS.TRUE).toString().trim().toLowerCase();
+      return {
+        isDirect: true,
+        isabPan: panNode,
+        isabEdge: edge,
+        isApplicable: isabApp === 'true'
+      };
+    }
+
+    const containerNodes = this.getContainerTreeGroup(panNode);
+    if (containerNodes.length <= 1) return null;
+
+    for (const otherPan of containerNodes) {
+      if (this.hasDirectISAB(adatNode, otherPan)) {
+        const edge = this.getISABEdge(adatNode, otherPan);
+        const isabApp = (edge?.applicability || BOOLEAN_OPTIONS.TRUE).toString().trim().toLowerCase();
+        
+        let allEdgesApplicable = (isabApp === 'true');
+        for (const cNode of containerNodes) {
+          const children = this.panTreeChildren.get(cNode.id) || [];
+          children.forEach(c => {
+            if (c.edge.linkType === LINK_TYPES.COMPLETE_C) {
+              const appVal = (c.edge.applicability || BOOLEAN_OPTIONS.TRUE).toString().trim().toLowerCase();
+              if (appVal !== 'true') {
+                allEdgesApplicable = false;
+              }
+            }
+          });
+        }
+
+        return {
+          isDirect: false,
+          isabPan: otherPan,
+          isabEdge: edge,
+          isApplicable: allEdgesApplicable
+        };
+      }
+    }
+
+    return null;
+  }
+
+  hasISAB(adatNode, panNode) {
+    if (!adatNode || !panNode) return false;
+
+    if (this.hasDirectISAB(adatNode, panNode)) {
+      return true;
+    }
+
+    const containerConn = this.getContainerISABConnection(adatNode, panNode);
+    if (containerConn && containerConn.isApplicable) {
+      return true;
+    }
+
+    const specGroup = this.getSpecializationTreeGroup(panNode);
+    if (specGroup.some(sp => this.hasDirectISAB(adatNode, sp))) {
+      return true;
+    }
+
+    return false;
   }
 
   getISABEdge(adatNode, panNode) {
@@ -736,6 +875,17 @@ export class AQLChecker {
           checkRecord.conditions.push(`PASSED: '${a1.name}' is a leaf of the specialization hierarchy and has attribute '${attrName}'.`);
           checkRecord.semantics = "Only leaves are analysable.";
         }
+      } else if (a1Type === 'Derived') {
+        const hasDerivedParent = this.adatTreeParents.has(a1.id) && 
+          this.adatTreeParents.get(a1.id).edge.linkType === LINK_TYPES.DISJOINT_D;
+        if (hasDerivedParent || !hasAttr) {
+          checkRecord.passed = false;
+          checkRecord.conditions.push(`FAILED: ${attrName} of Base ADAT cannot be accessed independently`);
+          report.errors.push(`FAILED: ${attrName} of Base ADAT cannot be accessed independently`);
+        } else {
+          checkRecord.conditions.push(`PASSED: '${attrName}' is an attribute of '${a1.name}'.`);
+          checkRecord.semantics = "The ADAT is analysable.";
+        }
       } else {
         if (!hasAttr) {
           checkRecord.passed = false;
@@ -857,14 +1007,24 @@ export class AQLChecker {
       semantics: ''
     };
 
-    // 1. Common condition: A ISAB P1
+    // 1. Common condition: A ISAB P1 (or A ISAB Container PAN tree with Applicability=TRUE)
+    const containerConn = this.getContainerISABConnection(adatNode, p1);
     const hasIsab = this.hasISAB(adatNode, p1);
     if (!hasIsab) {
       checkRecord.passed = false;
-      checkRecord.conditions.push(`FAILED: '${adatNode.name}' ISAB '${p1.name}' relationship does not exist.`);
-      report.errors.push(`Error: ADAT '${adatNode.name}' does not have an ISAB relationship with PAN '${p1.name}'.`);
+      if (containerConn && !containerConn.isApplicable) {
+        checkRecord.conditions.push(`FAILED: Applicability is FALSE for Container PAN tree connection with ADAT '${adatNode.name}'.`);
+        report.errors.push(`Error: Applicability is FALSE between Container PAN tree ('${p1.name}') and ADAT '${adatNode.name}'. Analysis semantics not preserved.`);
+      } else {
+        checkRecord.conditions.push(`FAILED: '${adatNode.name}' ISAB '${p1.name}' relationship does not exist.`);
+        report.errors.push(`Error: ADAT '${adatNode.name}' does not have an ISAB relationship with PAN '${p1.name}'.`);
+      }
     } else {
-      checkRecord.conditions.push(`PASSED: '${adatNode.name}' ISAB '${p1.name}' verified.`);
+      if (containerConn && !containerConn.isDirect) {
+        checkRecord.conditions.push(`PASSED: '${adatNode.name}' is connected to Container PAN tree via '${containerConn.isabPan.name}' with Applicability=TRUE.`);
+      } else {
+        checkRecord.conditions.push(`PASSED: '${adatNode.name}' ISAB '${p1.name}' verified.`);
+      }
     }
 
     // 2. Check p is attribute of Pn (including inherited attributes in Specialization trees)
@@ -886,7 +1046,11 @@ export class AQLChecker {
 
     if (n === 1) {
       if (checkRecord.passed) {
-        checkRecord.semantics = `${adatNode.name} is indeed analysable by ${p1.name}.`;
+        if (containerConn && !containerConn.isDirect) {
+          checkRecord.semantics = `${adatNode.name} can be analysed by the entire container PAN tree because Applicability=TRUE.`;
+        } else {
+          checkRecord.semantics = `${adatNode.name} is indeed analysable by ${p1.name}.`;
+        }
       }
     } else {
       if (p1Type === 'Complex') {

@@ -703,13 +703,60 @@ export class ImageExporter {
 
     const panRootParents = Array.from(panParentToChildren.keys()).filter(pid => !panChildToParent.has(pid));
 
+    // Helper: get all descendant nodes for a PAN
+    const getAllPanDescendants = (parentId) => {
+      const descendants = [];
+      const queue = [parentId];
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        const children = panParentToChildren.get(curr) || [];
+        children.forEach(c => {
+          descendants.push(c.childId);
+          queue.push(c.childId);
+        });
+      }
+      return descendants;
+    };
+
+    // Helper: check if a PAN node has any ISAB link
+    const panHasISAB = (nodeId) => {
+      return isabEdges.some(e => e.sourceId === nodeId || e.targetId === nodeId);
+    };
+
     panRootParents.forEach(rootId => {
       const rootNode = this.model.nodes.get(rootId);
       const rootName = this.formatName(rootNode?.name || 'PAN');
       const children = panParentToChildren.get(rootId) || [];
       const linkType = children.length > 0 ? getLinkTypeName(children[0].linkType) : 'specialization';
-      const formattedLink = (linkType === 'specialization') ? 'specialization1' : (linkType === 'container' ? 'containment' : linkType);
-      lines.push(`pan,${rootName},${formattedLink}`);
+
+      if (linkType === 'specialization') {
+        const descendantIds = getAllPanDescendants(rootId);
+        const rootHasIsab = panHasISAB(rootId);
+        const nonRootsWithIsab = descendantIds.filter(id => panHasISAB(id));
+
+        if (rootHasIsab && nonRootsWithIsab.length === 0) {
+          // Case 1: ADAT is analyzed by ROOT PAN only
+          lines.push(`pan,${rootName},specialization1`);
+        } else if (!rootHasIsab && nonRootsWithIsab.length > 0) {
+          // Case 2: ADAT is analyzed by intermediate/leaf PANs only
+          nonRootsWithIsab.forEach(childId => {
+            const childNode = this.model.nodes.get(childId);
+            if (childNode) {
+              lines.push(`pan,${this.formatName(childNode.name || 'PAN')},specialization2`);
+            }
+          });
+        } else if (rootHasIsab && nonRootsWithIsab.length > 0) {
+          // Case 3: ADAT is analyzed by ALL PANs (both root and children)
+          lines.push(`pan,${rootName},specialization3`);
+        } else {
+          // Fallback if no ISAB links are attached
+          lines.push(`pan,${rootName},specialization1`);
+        }
+      } else if (linkType === 'container') {
+        lines.push(`pan,${rootName},containment`);
+      } else {
+        lines.push(`pan,${rootName},${linkType}`);
+      }
     });
 
     // Atomic PANs

@@ -92,6 +92,16 @@ export class AQLTranslator {
           if (p) panChain.push(p);
         });
         if (panChain.length > 0) {
+          const firstPan = panChain[0];
+          const parentEdge = this.model.edges ? Array.from(this.model.edges.values()).find(
+            e => e.sourceId === firstPan.id && e.linkType === LINK_TYPES.COMPLETE_C
+          ) : null;
+          if (parentEdge) {
+            const parentPan = this.model.nodes.get(parentEdge.targetId);
+            if (parentPan && !panChain.some(p => p.id === parentPan.id)) {
+              panChain.unshift(parentPan);
+            }
+          }
           panIterators.push({ alias: normAlias, targetAlias: rawAlias, panChain });
         }
       }

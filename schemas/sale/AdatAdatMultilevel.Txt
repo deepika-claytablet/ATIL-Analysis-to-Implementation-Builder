@@ -1,0 +1,3 @@
+derived,sale,Base_Price
+derived,sale,Tax
+derived,sale,Insurance

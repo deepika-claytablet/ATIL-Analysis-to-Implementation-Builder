@@ -1,1 +1,4 @@
-sale,value,Product,True,many many,True
+sale,ex_showroom_price,Budget,True,many one,True
+sale,ex_showroom_price,Luxury,True,many one,True
+sale,ex_showroom_price,state,True,many one,True
+sale,ex_showroom_price,customer,True,many many,True

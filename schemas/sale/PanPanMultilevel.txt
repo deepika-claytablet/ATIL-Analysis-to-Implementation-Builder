@@ -1,2 +1,6 @@
-specialization,Product,non_perishable
-specialization,Product,Perishable
+specialization,Car,Budget
+specialization,Car,Luxury
+specialization,customer,Corporate
+specialization,customer,Individual
+specialization,customer,Professional
+container,state,city

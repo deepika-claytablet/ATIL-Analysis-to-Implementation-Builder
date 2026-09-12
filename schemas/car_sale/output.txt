@@ -1,15 +1,20 @@
 
 
-create table if not exists Dim_Car (
-Model	 varchar(50),
-Car_SK	 varchar(50) PRIMARY KEY
+create table if not exists Dim_Budget (
+consumption	 varchar(50),
+No_of_gears	 varchar(50),
+Budget_SK	 varchar(50) PRIMARY KEY
 );
-alter table Dim_Car add consumption	 varchar(50);
-alter table Dim_Car add No_of_gears	 varchar(50);
-alter table Dim_Car add Budget_SK	 varchar(50) ;
-alter table Dim_Car add Music_System	 varchar(50);
-alter table Dim_Car add length	 varchar(50);
-alter table Dim_Car add Luxury_SK	 varchar(50) ;
+alter table Dim_Budget add Model	 varchar(50);
+alter table Dim_Budget add Car_SK	 varchar(50) ;
+
+create table if not exists Dim_Luxury (
+Music_System	 varchar(50),
+length	 varchar(50),
+Luxury_SK	 varchar(50) PRIMARY KEY
+);
+alter table Dim_Luxury add Model	 varchar(50);
+alter table Dim_Luxury add Car_SK	 varchar(50) ;
 
 create table if not exists Dim_customer (
 name	 varchar(50),

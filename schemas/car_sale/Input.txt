@@ -1,4 +1,5 @@
-pan,Car,specialization1
+pan,Budget,specialization2
+pan,Luxury,specialization2
 pan,customer,specialization1
 pan,state,containment
 adat,sale,derived2,notmixed
