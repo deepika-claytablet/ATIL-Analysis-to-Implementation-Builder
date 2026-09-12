@@ -26,6 +26,13 @@ import base64
 import urllib.parse
 import subprocess
 
+if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 PORT = 8080
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 SCHEMAS_DIR = os.path.join(DIRECTORY, 'schemas')
@@ -448,7 +455,7 @@ def main():
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         url = f"http://localhost:{PORT}/index.html"
         print("=" * 65)
-        print(" 🚀 ADAPT - Conceptual Schema Builder (PAN & ADAT)")
+        print(" [ADAPT] Conceptual Schema Builder (PAN & ADAT)")
         print("=" * 65)
         print(f" Serving at: {url}")
         print(" Press Ctrl+C to stop the server.")

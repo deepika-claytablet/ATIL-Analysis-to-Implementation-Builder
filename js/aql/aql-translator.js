@@ -475,34 +475,6 @@ export class AQLTranslator {
     return `SELECT ${distinctStr}${selectClauses}\nFROM ${fullFrom}${whereClause}${groupByClause}${havingClause}${orderByClause}`;
   }
 
-    // Build WHERE clause
-    let whereClause = '';
-    if (queryAst.where) {
-      whereClause = '\nWHERE ' + this.translateExpression(queryAst.where, adatAlias);
-    }
-
-    // Build GROUP BY clause
-    let groupByClause = '';
-    if (queryAst.groupBy && queryAst.groupBy.length > 0) {
-      groupByClause = '\nGROUP BY ' + queryAst.groupBy.map(expr => this.translateExpression(expr, adatAlias)).join(', ');
-    }
-
-    // Build HAVING clause
-    let havingClause = '';
-    if (queryAst.having) {
-      havingClause = '\nHAVING ' + this.translateExpression(queryAst.having, adatAlias);
-    }
-
-    // Build ORDER BY clause
-    let orderByClause = '';
-    if (queryAst.orderBy && queryAst.orderBy.length > 0) {
-      orderByClause = '\nORDER BY ' + queryAst.orderBy.map(item => `${this.translateExpression(item.expr, adatAlias)} ${item.direction}`).join(', ');
-    }
-
-    const distinctStr = queryAst.isDistinct ? 'DISTINCT ' : '';
-    return `SELECT ${distinctStr}${selectClauses}\nFROM ${fullFrom}${whereClause}${groupByClause}${havingClause}${orderByClause}`;
-  }
-
   translateSelectItem(item, defaultAdatAlias) {
     if (item.type === 'AGGREGATE') {
       const distinctStr = item.distinct ? 'DISTINCT ' : '';

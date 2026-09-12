@@ -185,7 +185,9 @@ export class AQLConsole {
       }
     });
 
-    const panEffectiveAttrs = linkedPan ? this.model.getPanEffectiveAttributes(linkedPan) : (pans[0] ? this.model.getPanEffectiveAttributes(pans[0]) : []);
+    const activePan = linkedPan || pans[0];
+    const panName = activePan ? activePan.name.trim().replace(/[\s\-]+/g, '_') : 'Dimension';
+    const panEffectiveAttrs = activePan ? this.model.getPanEffectiveAttributes(activePan) : [];
     const panAttr = (panEffectiveAttrs && panEffectiveAttrs[0]?.name) || 'code';
 
     this.sampleSelect.innerHTML += `
