@@ -556,6 +556,40 @@ export class SchemaModel {
     return { valid: true };
   }
 
+  /**
+   * Returns all effective attributes for a PAN node.
+   * In a Specialization tree (UML_INHERITANCE), child PANs inherit attributes from parent PANs recursively.
+   * For all other tree types (Container, Complex, Derived), attributes are NOT inherited.
+   */
+  getPanEffectiveAttributes(node) {
+    if (!node || node.type !== NODE_TYPES.PAN) return node?.attributes || [];
+    const attrs = [...(node.attributes || [])];
+    const visited = new Set([node.id]);
+
+    let currentId = node.id;
+    while (true) {
+      const parentEdge = Array.from(this.edges.values()).find(
+        e => e.sourceId === currentId && e.linkType === LINK_TYPES.UML_INHERITANCE
+      );
+      if (parentEdge) {
+        const parentNode = this.nodes.get(parentEdge.targetId);
+        if (parentNode && parentNode.type === NODE_TYPES.PAN && !visited.has(parentNode.id)) {
+          visited.add(parentNode.id);
+          if (parentNode.attributes) {
+            attrs.push(...parentNode.attributes);
+          }
+          currentId = parentNode.id;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    return attrs;
+  }
+
   getStats() {
     let panCount = 0;
     let adatCount = 0;

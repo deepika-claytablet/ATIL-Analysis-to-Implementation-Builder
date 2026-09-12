@@ -1,0 +1,1 @@
+Tax,Structured,Tax_amount,Numeric

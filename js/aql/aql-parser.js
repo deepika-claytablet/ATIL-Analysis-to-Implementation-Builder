@@ -37,17 +37,20 @@ export class AQLParser {
         continue;
       }
 
-      // String literal '...' or "..."
-      if (ch === "'" || ch === '"') {
-        const quote = ch;
+      // String literal '...', "...", ‘...’, “...”
+      if (ch === "'" || ch === '"' || ch === '“' || ch === '”' || ch === '‘' || ch === '’') {
+        const isDouble = (ch === '"' || ch === '“' || ch === '”');
         let str = '';
         i++;
-        while (i < len && input[i] !== quote) {
-          if (input[i] === '\\' && i + 1 < len) {
+        while (i < len) {
+          const c = input[i];
+          if (isDouble && (c === '"' || c === '“' || c === '”')) break;
+          if (!isDouble && (c === "'" || c === '‘' || c === '’')) break;
+          if (c === '\\' && i + 1 < len) {
             str += input[i + 1];
             i += 2;
           } else {
-            str += input[i];
+            str += c;
             i++;
           }
         }

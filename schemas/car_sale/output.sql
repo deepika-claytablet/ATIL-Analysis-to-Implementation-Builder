@@ -1,0 +1,102 @@
+create database car_sale;
+use car_sale;
+
+create table if not exists Dim_Car (
+Model	 varchar(50),
+Car_SK	 varchar(50) PRIMARY KEY
+);
+alter table Dim_Car add consumption	 varchar(50);
+alter table Dim_Car add No_of_gears	 varchar(50);
+alter table Dim_Car add Budget_SK	 varchar(50) ;
+alter table Dim_Car add Music_System	 varchar(50);
+alter table Dim_Car add length	 varchar(50);
+alter table Dim_Car add Luxury_SK	 varchar(50) ;
+
+create table if not exists Dim_customer (
+name	 varchar(50),
+customer_SK	 varchar(50) PRIMARY KEY
+);
+alter table Dim_customer add type	 varchar(50);
+alter table Dim_customer add Corporate_SK	 varchar(50) ;
+alter table Dim_customer add address	 varchar(50);
+alter table Dim_customer add Individual_SK	 varchar(50) ;
+alter table Dim_customer add Profession	 varchar(50);
+alter table Dim_customer add Agency	 varchar(50);
+alter table Dim_customer add Professional_SK	 varchar(50) ;
+
+create table if not exists Dim_state (
+state_name	 varchar(50),
+state_SK	 varchar(50) PRIMARY KEY
+);
+alter table Dim_state add cityName	 varchar(50);
+alter table Dim_state add city_SK	 varchar(50) ;
+
+
+create table sale (
+ex_showroom_price	Numeric,
+sale_Key	varchar(50) PRIMARY KEY
+);
+
+alter table sale add Budget_SK	varchar(50) ;
+alter table sale add foreign key (Budget_SK) references Dim_Budget(Budget_SK);
+alter table sale add Luxury_SK	varchar(50) ;
+alter table sale add foreign key (Luxury_SK) references Dim_Luxury(Luxury_SK);
+alter table sale add state_SK	varchar(50) ;
+alter table sale add foreign key (state_SK) references Dim_state(state_SK);
+alter table sale add customer_SK	varchar(50) ;
+alter table sale add foreign key (customer_SK) references Dim_customer(customer_SK);
+
+
+create table analysis_property (
+Adat varchar(50), 
+Attribute varchar(50), 
+Pan varchar(50), 
+is_Additive boolean, 
+cardinality varchar(20), 
+Applicability boolean, 
+PRIMARY KEY (Adat, Attribute, Pan)
+); 
+insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'ex_showroom_price', 'Budget', true, 'many one', true);
+insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'ex_showroom_price', 'Luxury', true, 'many one', true);
+insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'ex_showroom_price', 'state', true, 'many one', true);
+
+create table Bridge_sale_customer (
+sale_key varchar(50), 
+customer_SK varchar(50), 
+PRIMARY KEY (sale_key, customer_SK)
+);
+insert into analysis_property (Adat, Attribute, Pan, is_Additive,cardinality,Applicability) values ('sale', 'ex_showroom_price', 'customer', true, 'many many', true);
+
+
+create table dependentAdat (
+Adat_dependee varchar(50), 
+Adat_dependent varchar(50), 
+PRIMARY KEY (Adat_dependee, Adat_dependent)
+);  
+create table Base_Price (
+Base_amount	Numeric,
+Base_Price_Key	varchar(50) PRIMARY KEY
+);
+
+
+ 
+alter table sale add Base_Price_key	varchar(50) UNIQUE ;
+alter table sale add foreign key (Base_Price_key) references Base_Price(Base_Price_key);
+create table Tax (
+Tax_amount	Numeric,
+Tax_Key	varchar(50) PRIMARY KEY
+);
+
+
+ 
+alter table sale add Tax_key	varchar(50) UNIQUE ;
+alter table sale add foreign key (Tax_key) references Tax(Tax_key);
+create table Insurance (
+Premium	Numeric,
+Insurance_Key	varchar(50) PRIMARY KEY
+);
+
+
+ 
+alter table sale add Insurance_key	varchar(50) UNIQUE ;
+alter table sale add foreign key (Insurance_key) references Insurance(Insurance_key);

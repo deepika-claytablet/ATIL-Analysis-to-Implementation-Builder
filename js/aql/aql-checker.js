@@ -147,6 +147,35 @@ export class AQLChecker {
     }
   }
 
+  getPanEffectiveAttributes(panNode) {
+    if (!panNode) return [];
+    const attrs = [...(panNode.attributes || [])];
+    const visited = new Set([panNode.id]);
+
+    let currentId = panNode.id;
+    while (this.panTreeParents.has(currentId)) {
+      const parentInfo = this.panTreeParents.get(currentId);
+      // ONLY inherit in case of Specialization (UML_INHERITANCE)
+      if (parentInfo.edge.linkType === LINK_TYPES.UML_INHERITANCE) {
+        const parentNode = this.model.nodes.get(parentInfo.parentId);
+        if (parentNode && !visited.has(parentNode.id)) {
+          visited.add(parentNode.id);
+          if (parentNode.attributes) {
+            attrs.push(...parentNode.attributes);
+          }
+          currentId = parentNode.id;
+        } else {
+          break;
+        }
+      } else {
+        // Do not inherit for other types of PAN trees
+        break;
+      }
+    }
+
+    return attrs;
+  }
+
   isAdatLeafInSpecialization(adatNode) {
     // Leaf has no children specializing it
     const children = this.adatTreeChildren.get(adatNode.id) || [];
@@ -411,7 +440,7 @@ export class AQLChecker {
         return;
       }
 
-      // Check if parts[0] is an iterator defined earlier, e.g. "S.Product P"
+      // Check if parts[0] is an iterator defined earlier, e.g. "S.Product P" or "P.Category C"
       const parentIter = report.iterators.get(firstNorm);
       if (parentIter) {
         const remaining = parts.slice(1);
@@ -424,6 +453,9 @@ export class AQLChecker {
           if (panNode) {
             // S.Product P (PAN Chain)
             const panChain = this.resolvePanPath(parentIter.node, remaining, report);
+            if (!this.hasISAB(parentIter.node, panChain[0])) {
+              report.errors.push(`In FROM clause: ADAT '${parentIter.node.name}' does not have an ISAB relationship with PAN '${panChain[0].name}'.`);
+            }
             report.iterators.set(normAlias, {
               kind: 'PAN',
               adatNode: parentIter.node,
@@ -448,12 +480,33 @@ export class AQLChecker {
             report.errors.push(`In FROM clause: '${remaining[0]}' is neither a recognized PAN nor ADAT associated with '${parts[0]}'.`);
             return;
           }
+        } else if (parentIter.kind === 'PAN') {
+          const nextNorm = this.normalize(remaining[0]);
+          const panNode = this.pansByName.get(nextNorm);
+          if (panNode) {
+            const panChain = [...parentIter.chain, panNode];
+            report.iterators.set(normAlias, {
+              kind: 'PAN',
+              adatNode: parentIter.adatNode,
+              panNode: panNode,
+              chain: panChain,
+              alias: rawAlias
+            });
+            report.participatingPANs.add(panNode);
+            return;
+          } else {
+            report.errors.push(`In FROM clause: '${remaining[0]}' is not a recognized PAN associated with '${parts[0]}'.`);
+            return;
+          }
         }
       }
 
       // Direct ADAT.PAN syntax without iterator alias, e.g. "Sales.Product P"
       if (rootAdat && parts.length > 1) {
         const panChain = this.resolvePanPath(rootAdat, parts.slice(1), report);
+        if (!this.hasISAB(rootAdat, panChain[0])) {
+          report.errors.push(`In FROM clause: ADAT '${rootAdat.name}' does not have an ISAB relationship with PAN '${panChain[0].name}'.`);
+        }
         report.iterators.set(normAlias, {
           kind: 'PAN',
           adatNode: rootAdat,
@@ -466,16 +519,10 @@ export class AQLChecker {
         return;
       }
 
-      // Direct PAN iterator: e.g. "FROM Product P"
+      // Standalone PAN iterator: e.g. "FROM Customer C" or "FROM SALE S, Customer C" (NOT PERMITTED)
       const panDirect = this.pansByName.get(firstNorm);
       if (panDirect) {
-        report.iterators.set(normAlias, {
-          kind: 'PAN_STANDALONE',
-          panNode: panDirect,
-          chain: [panDirect],
-          alias: rawAlias
-        });
-        report.participatingPANs.add(panDirect);
+        report.errors.push(`In FROM clause: Chaining must always start with an ADAT or ADAT iterator (e.g., 'S.${panDirect.name} ${rawAlias}'). Standalone PAN '${parts[0]}' is not permitted as an iterator in the FROM clause.`);
         return;
       }
 
@@ -546,15 +593,29 @@ export class AQLChecker {
           this.verifyAdatChain(iter.node, [], attrName, rawChain, clauseName, report);
         } else if (remaining.length > 1) {
           const secondNorm = this.normalize(remaining[0]);
-          const possiblePan = this.pansByName.get(secondNorm);
-          const possibleChildAdat = this.adatsByName.get(secondNorm);
+          let possiblePan = this.pansByName.get(secondNorm);
+          let possibleChildAdat = this.adatsByName.get(secondNorm);
+
+          // Support Iterator Navigation: e.g. S.C.name where C is iterator for Customer
+          const secondIter = report.iterators.get(secondNorm);
+          if (secondIter) {
+            if (secondIter.kind === 'PAN' || secondIter.kind === 'PAN_STANDALONE') {
+              possiblePan = secondIter.panNode;
+            } else if (secondIter.kind === 'ADAT') {
+              possibleChildAdat = secondIter.node;
+            }
+          }
 
           if (possiblePan) {
-            const panChainParts = remaining.slice(0, remaining.length - 1);
+            const restOfChain = remaining.slice(1, remaining.length - 1);
+            const panChainParts = (secondIter && secondIter.kind === 'PAN' && secondIter.chain)
+              ? [...secondIter.chain.map(p => p.name), ...restOfChain]
+              : [possiblePan.name, ...restOfChain];
             const panAttr = remaining[remaining.length - 1];
             this.verifyPanChain(iter.node, panChainParts, panAttr, rawChain, clauseName, report);
           } else if (possibleChildAdat) {
-            const adatChainParts = remaining.slice(0, remaining.length - 1);
+            const restOfChain = remaining.slice(1, remaining.length - 1);
+            const adatChainParts = [possibleChildAdat.name, ...restOfChain];
             const adatAttr = remaining[remaining.length - 1];
             this.verifyAdatChain(iter.node, adatChainParts, adatAttr, rawChain, clauseName, report);
           } else {
@@ -562,20 +623,9 @@ export class AQLChecker {
           }
         }
         return;
-      } else if (iter.kind === 'PAN') {
-        const adatNode = iter.adatNode;
-        const existingPanChain = iter.chain;
-        const remaining = parts.slice(1);
-
-        if (remaining.length === 1) {
-          const attrName = remaining[0];
-          this.verifyPanChain(adatNode, existingPanChain.map(p => p.name), attrName, rawChain, clauseName, report);
-        } else if (remaining.length > 1) {
-          const subPanNames = remaining.slice(0, remaining.length - 1);
-          const attrName = remaining[remaining.length - 1];
-          const fullPanChain = [...existingPanChain.map(p => p.name), ...subPanNames];
-          this.verifyPanChain(adatNode, fullPanChain, attrName, rawChain, clauseName, report);
-        }
+      } else if (iter.kind === 'PAN' || iter.kind === 'PAN_STANDALONE') {
+        // Direct chaining on PAN without ADAT prefix is not permitted in AQL
+        report.errors.push(`In ${clauseName}: Chaining must always start with an ADAT or ADAT iterator (e.g., 'S.${rawChain}'). Direct PAN reference '${rawChain}' is not permitted in AQL.`);
         return;
       }
     }
@@ -589,30 +639,40 @@ export class AQLChecker {
         this.verifyAdatChain(directAdat, [], remaining[0], rawChain, clauseName, report);
       } else if (remaining.length > 1) {
         const secondNorm = this.normalize(remaining[0]);
-        if (this.pansByName.has(secondNorm)) {
-          const panChainParts = remaining.slice(0, remaining.length - 1);
+        let possiblePan = this.pansByName.get(secondNorm);
+        let possibleChildAdat = this.adatsByName.get(secondNorm);
+
+        // Also check if second part is an iterator
+        const secondIter = report.iterators.get(secondNorm);
+        if (secondIter) {
+          if (secondIter.kind === 'PAN' || secondIter.kind === 'PAN_STANDALONE') {
+            possiblePan = secondIter.panNode;
+          } else if (secondIter.kind === 'ADAT') {
+            possibleChildAdat = secondIter.node;
+          }
+        }
+
+        if (possiblePan) {
+          const restOfChain = remaining.slice(1, remaining.length - 1);
+          const panChainParts = [possiblePan.name, ...restOfChain];
           const panAttr = remaining[remaining.length - 1];
           this.verifyPanChain(directAdat, panChainParts, panAttr, rawChain, clauseName, report);
-        } else {
-          const adatChainParts = remaining.slice(0, remaining.length - 1);
+        } else if (possibleChildAdat) {
+          const restOfChain = remaining.slice(1, remaining.length - 1);
+          const adatChainParts = [possibleChildAdat.name, ...restOfChain];
           const adatAttr = remaining[remaining.length - 1];
           this.verifyAdatChain(directAdat, adatChainParts, adatAttr, rawChain, clauseName, report);
+        } else {
+          report.errors.push(`In ${clauseName}: '${remaining[0]}' in '${rawChain}' is neither a valid attribute, PAN, nor ADAT.`);
         }
       }
       return;
     }
 
-    // Case 3: Direct PAN reference, e.g. Product.wattage
+    // Case 3: Direct PAN reference without ADAT, e.g. Customer.name
     const directPan = this.pansByName.get(firstNorm);
-    if (directPan && parts.length === 2) {
-      report.participatingPANs.add(directPan);
-      const adats = Array.from(report.participatingADATs);
-      const hostAdat = adats.find(a => this.hasISAB(a, directPan)) || adats[0];
-      if (hostAdat) {
-        this.verifyPanChain(hostAdat, [directPan.name], parts[1], rawChain, clauseName, report);
-      } else {
-        report.errors.push(`In ${clauseName}: PAN '${directPan.name}' in '${rawChain}' has no associated ADAT via ISAB.`);
-      }
+    if (directPan) {
+      report.errors.push(`In ${clauseName}: Chaining must always start with an ADAT or ADAT iterator (e.g., 'S.${rawChain}'). Direct PAN reference '${rawChain}' is not permitted in AQL.`);
       return;
     }
 
@@ -807,15 +867,21 @@ export class AQLChecker {
       checkRecord.conditions.push(`PASSED: '${adatNode.name}' ISAB '${p1.name}' verified.`);
     }
 
-    // 2. Check p is attribute of Pn
+    // 2. Check p is attribute of Pn (including inherited attributes in Specialization trees)
     const normAttr = this.normalize(attrName);
-    const hasAttr = (pn.attributes || []).some(a => this.normalize(a.name) === normAttr);
+    const effectiveAttrs = this.getPanEffectiveAttributes(pn);
+    const hasAttr = effectiveAttrs.some(a => this.normalize(a.name) === normAttr);
     if (!hasAttr) {
       checkRecord.passed = false;
       checkRecord.conditions.push(`FAILED: '${attrName}' is not an attribute of PAN '${pn.name}'.`);
       report.errors.push(`Error: Attribute '${attrName}' not found in PAN '${pn.name}'.`);
     } else {
-      checkRecord.conditions.push(`PASSED: '${attrName}' is an attribute of PAN '${pn.name}'.`);
+      const isInherited = !(pn.attributes || []).some(a => this.normalize(a.name) === normAttr);
+      if (isInherited) {
+        checkRecord.conditions.push(`PASSED: '${attrName}' is an inherited attribute of specialized PAN '${pn.name}'.`);
+      } else {
+        checkRecord.conditions.push(`PASSED: '${attrName}' is an attribute of PAN '${pn.name}'.`);
+      }
     }
 
     if (n === 1) {

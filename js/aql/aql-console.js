@@ -185,8 +185,8 @@ export class AQLConsole {
       }
     });
 
-    const panName = linkedPan ? linkedPan.name.trim().replace(/[\s\-]+/g, '_') : (pans[0]?.name || 'PAN');
-    const panAttr = (linkedPan?.attributes && linkedPan.attributes[0]?.name) || 'code';
+    const panEffectiveAttrs = linkedPan ? this.model.getPanEffectiveAttributes(linkedPan) : (pans[0] ? this.model.getPanEffectiveAttributes(pans[0]) : []);
+    const panAttr = (panEffectiveAttrs && panEffectiveAttrs[0]?.name) || 'code';
 
     this.sampleSelect.innerHTML += `
       <option value="simple">1. Simple Projection (${adatName} & ${panName})</option>
@@ -202,16 +202,16 @@ export class AQLConsole {
 
     // Store sample query texts
     this.sampleQueries = {
-      simple: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P`,
-      agg_sum: `SELECT S.${adatAttr}, P.${panAttr}, SUM(S.${adatAttr}) AS total_metric\nFROM ${adatName} S, S.${panName} P\nGROUP BY S.${adatAttr}, P.${panAttr}`,
-      group_by_having: `SELECT S.${adatAttr}, P.${panAttr}, SUM(S.${adatAttr}) AS total_metric\nFROM ${adatName} S, S.${panName} P\nGROUP BY S.${adatAttr}, P.${panAttr}\nHAVING SUM(S.${adatAttr}) > 1000`,
-      where_filter: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 100`,
-      union_sample: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 500\nUNION\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE P.${panAttr} = 'Beverage'`,
-      intersect_sample: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 200\nINTERSECT\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} < 800`,
-      except_sample: `SELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 100\nEXCEPT\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 500`,
-      create_view: `CREATE VIEW HighValueMetrics AS\nSELECT S.${adatAttr}, P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 5000`,
-      invalid_demo: `SELECT S.non_existent_attribute, P.${panAttr}\nFROM ${adatName} S, S.InvalidPan P`,
-      generic_sample: `SELECT S.value, P.wattage\nFROM Sales S, S.Product P\nWHERE P.wattage = 20`
+      simple: `SELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P`,
+      agg_sum: `SELECT S.${adatAttr}, S.P.${panAttr}, SUM(S.${adatAttr}) AS total_metric\nFROM ${adatName} S, S.${panName} P\nGROUP BY S.${adatAttr}, S.P.${panAttr}`,
+      group_by_having: `SELECT S.${adatAttr}, S.P.${panAttr}, SUM(S.${adatAttr}) AS total_metric\nFROM ${adatName} S, S.${panName} P\nGROUP BY S.${adatAttr}, S.P.${panAttr}\nHAVING SUM(S.${adatAttr}) > 1000`,
+      where_filter: `SELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 100`,
+      union_sample: `SELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 500\nUNION\nSELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.P.${panAttr} = 'Beverage'`,
+      intersect_sample: `SELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 200\nINTERSECT\nSELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} < 800`,
+      except_sample: `SELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 100\nEXCEPT\nSELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 500`,
+      create_view: `CREATE VIEW HighValueMetrics AS\nSELECT S.${adatAttr}, S.P.${panAttr}\nFROM ${adatName} S, S.${panName} P\nWHERE S.${adatAttr} > 5000`,
+      invalid_demo: `SELECT S.non_existent_attribute, S.P.${panAttr}\nFROM ${adatName} S, S.InvalidPan P`,
+      generic_sample: `SELECT S.value, S.P.wattage\nFROM Sales S, S.Product P\nWHERE S.P.wattage = 20`
     };
 
     // If query input is empty, load sample 1 by default

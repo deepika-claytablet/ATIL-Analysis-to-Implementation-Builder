@@ -1,0 +1,4 @@
+pan,Car,specialization1
+pan,customer,specialization1
+pan,state,containment
+adat,sale,derived2,notmixed

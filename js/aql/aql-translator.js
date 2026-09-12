@@ -76,6 +76,13 @@ export class AQLTranslator {
         return;
       }
 
+      // Standalone PAN iterator in FROM, e.g. "FROM SALE S, Customer C"
+      const directPan = this.pansByName.get(firstNorm);
+      if (directPan && parts.length === 1) {
+        panIterators.push({ alias: normAlias, targetAlias: rawAlias, panChain: [directPan] });
+        return;
+      }
+
       // Check if parts[0] is alias or ADAT with remaining PAN chain
       if (parts.length > 1) {
         const panNames = parts.slice(1);
@@ -100,6 +107,32 @@ export class AQLTranslator {
         adatAlias = 'S';
       }
     }
+
+    // Auto-detect any PANs referenced in expressions (Option A: S.customer.name) not already in panIterators
+    const scanForChains = (expr) => {
+      if (!expr) return;
+      if (expr.type === 'CHAIN' && expr.parts.length > 2) {
+        const panPart = expr.parts[1];
+        const p = this.pansByName.get(this.normalize(panPart));
+        if (p && !panIterators.some(pi => pi.panChain.some(pc => pc.id === p.id))) {
+          const defaultPanAlias = p.name.trim().replace(/[\s\-]+/g, '_');
+          panIterators.push({ alias: this.normalize(defaultPanAlias), targetAlias: defaultPanAlias, panChain: [p] });
+        }
+      } else if (expr.type === 'AGGREGATE') {
+        scanForChains(expr.argument);
+      } else if (expr.left && expr.right) {
+        scanForChains(expr.left);
+        scanForChains(expr.right);
+      } else if (expr.expr) {
+        scanForChains(expr.expr);
+      }
+    };
+
+    queryAst.select.forEach(s => s.type === 'AGGREGATE' ? scanForChains(s) : scanForChains(s.expression));
+    if (queryAst.where) scanForChains(queryAst.where);
+    if (queryAst.groupBy) queryAst.groupBy.forEach(g => scanForChains(g));
+    if (queryAst.having) scanForChains(queryAst.having);
+    if (queryAst.orderBy) queryAst.orderBy.forEach(o => scanForChains(o.expr));
 
     // Build SELECT projections
     const selectClauses = queryAst.select.map(item => this.translateSelectItem(item, adatAlias)).join(',\n       ');
@@ -195,6 +228,15 @@ export class AQLTranslator {
         const argStr = expr.argument.type === 'STAR' ? '*' : this.translateExpression(expr.argument, defaultAdatAlias);
         return `${expr.func}(${distinctStr}${argStr})`;
 
+      case 'LITERAL_STRING':
+        return `'${expr.value}'`;
+
+      case 'LITERAL_NUMBER':
+        return `${expr.value}`;
+
+      case 'LITERAL_BOOLEAN':
+        return expr.value ? 'TRUE' : 'FALSE';
+
       case 'LITERAL':
         if (typeof expr.value === 'string') {
           return `'${expr.value}'`;
@@ -212,14 +254,15 @@ export class AQLTranslator {
       case 'BINARY_MATH':
         const left = this.translateExpression(expr.left, defaultAdatAlias);
         const right = this.translateExpression(expr.right, defaultAdatAlias);
-        return `${left} ${expr.operator} ${right}`;
+        const op = expr.op || expr.operator || '=';
+        return `${left} ${op} ${right}`;
 
       case 'IS_NULL':
         const sub = this.translateExpression(expr.expr, defaultAdatAlias);
         return expr.not ? `${sub} IS NOT NULL` : `${sub} IS NULL`;
 
       default:
-        return '';
+        return expr.raw || (expr.value !== undefined ? `${expr.value}` : '');
     }
   }
 
@@ -231,9 +274,37 @@ export class AQLTranslator {
     const iter = this.report.iterators.get(firstNorm);
     if (iter) {
       if (iter.kind === 'ADAT') {
-        const attrName = parts[parts.length - 1];
-        return `${iter.alias}.${attrName}`;
-      } else if (iter.kind === 'PAN') {
+        if (parts.length === 2) {
+          // e.g. S.Ex_showroom_price
+          const attrName = parts[1];
+          return `${iter.alias}.${attrName}`;
+        }
+        if (parts.length > 2) {
+          // e.g. S.C.name or S.customer.name or S.C.state.cityName
+          const secondNorm = this.normalize(parts[1]);
+          const secondIter = this.report.iterators.get(secondNorm);
+          if (secondIter && (secondIter.kind === 'PAN' || secondIter.kind === 'PAN_STANDALONE')) {
+            const attrName = parts[parts.length - 1];
+            if (parts.length === 3) {
+              return `${secondIter.alias}.${attrName}`;
+            } else {
+              const targetPanName = parts[parts.length - 2];
+              return `${targetPanName}.${attrName}`;
+            }
+          }
+          const panNode = this.pansByName.get(secondNorm);
+          if (panNode) {
+            const attrName = parts[parts.length - 1];
+            const panIter = Array.from(this.report.iterators.values()).find(
+              it => (it.kind === 'PAN' || it.kind === 'PAN_STANDALONE') && it.panNode?.id === panNode.id
+            );
+            const aliasToUse = panIter ? panIter.alias : panNode.name.trim().replace(/[\s\-]+/g, '_');
+            return `${aliasToUse}.${attrName}`;
+          }
+          const attrName = parts[parts.length - 1];
+          return `${parts[parts.length - 2]}.${attrName}`;
+        }
+      } else if (iter.kind === 'PAN' || iter.kind === 'PAN_STANDALONE') {
         const attrName = parts[parts.length - 1];
         return `${iter.alias}.${attrName}`;
       }
