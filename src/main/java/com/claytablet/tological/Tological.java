@@ -559,14 +559,9 @@ public class Tological  {
                                 output = output + "\n"+ arl.createForContent(mla, a, analysis_property, arArray);
                                  break;
                             }
-                            else if(linkType.equalsIgnoreCase("derived1") && mixedStatus.equalsIgnoreCase("notmixed")){
+                            else if((linkType.equalsIgnoreCase("derived1") || linkType.equalsIgnoreCase("derived2") || linkType.equalsIgnoreCase("derived")) && mixedStatus.equalsIgnoreCase("notmixed")){
                                 ATR_Derived arl = new ATR_Derived(a);
-                                output = output + "\n"+arl.createDerivedCase1(a, mla, analysis_property, arArray);
-                                 break;
-                            }
-                            else if(linkType.equalsIgnoreCase("derived2") && mixedStatus.equalsIgnoreCase("notmixed")){
-                                ATR_Derived arl = new ATR_Derived(a);
-                                output = output + "\n"+arl.createDerivedCase2(a, mla, analysis_property, arArray);
+                                output = output + "\n"+arl.createDerived(a, mla, analysis_property, arArray);
                                  break;
                             }
                             else if(linkType.equalsIgnoreCase("complex1") && mixedStatus.equalsIgnoreCase("notmixed")){

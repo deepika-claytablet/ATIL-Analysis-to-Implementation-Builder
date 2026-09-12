@@ -78,30 +78,6 @@ Adat_dependee varchar(50),
 Adat_dependent varchar(50), 
 PRIMARY KEY (Adat_dependee, Adat_dependent)
 );  
-create table Base_Price (
-Base_amount	Numeric,
-Base_Price_Key	varchar(50) PRIMARY KEY
-);
-
-
- 
-alter table sale add Base_Price_key	varchar(50) UNIQUE ;
-alter table sale add foreign key (Base_Price_key) references Base_Price(Base_Price_key);
-create table Tax (
-Tax_amount	Numeric,
-Tax_Key	varchar(50) PRIMARY KEY
-);
-
-
- 
-alter table sale add Tax_key	varchar(50) UNIQUE ;
-alter table sale add foreign key (Tax_key) references Tax(Tax_key);
-create table Insurance (
-Premium	Numeric,
-Insurance_Key	varchar(50) PRIMARY KEY
-);
-
-
- 
-alter table sale add Insurance_key	varchar(50) UNIQUE ;
-alter table sale add foreign key (Insurance_key) references Insurance(Insurance_key);
+alter table sale add Base_amount	Numeric;
+alter table sale add Tax_amount	Numeric;
+alter table sale add Premium	Numeric;

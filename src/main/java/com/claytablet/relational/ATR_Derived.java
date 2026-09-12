@@ -19,6 +19,43 @@ public class ATR_Derived extends adatToRelations{
     public ATR_Derived(Adat A){
         super(A);
     }
+    /**
+     * For a Derived ADAT, AT:
+     * step 1:  Create a relation R for AT by applying the rules of an atomic ADAT
+     * step 2:  For each base ADATs a. Include the attributes in R.
+     */
+    public String createDerived(Adat a, MultiLevelAdat mla, AdatAttributeRelationships [] aar, AdatRelationships [] ar){
+        // step 1: Create a relation R for AT by applying the rules of an atomic ADAT
+        this.output = this.output + "\n" + this.createRelation(a) + "\n" + createRelationships(a, ar) + "\n" + createAnalysisProperty(a, aar)
+                + "\n" + createDependent(a, ar);
+        
+        // step 2: For each base ADATs a. Include the attributes in R.
+        Multimap<Adat, Adat> tree = mla.getAdatderived();
+        Collection<Adat> children = tree.get(a);
+        for (Adat baseAdat : children) {
+            includeBaseAttributes(a, baseAdat, tree);
+        }
+        
+        return this.output;
+    }
+    
+    private void includeBaseAttributes(Adat a, Adat baseAdat, Multimap<Adat, Adat> tree) {
+        if (baseAdat != null && baseAdat.getAttr_DataKind() != null) {
+            for (Map.Entry<String, String> it : baseAdat.getAttr_DataKind().entrySet()) {
+                this.output = this.output + "\nalter table " + a.getName() + " add " + it.getKey() + "\t" + it.getValue() + ";";
+            }
+        }
+        if (tree != null) {
+            Collection<Adat> children = tree.get(baseAdat);
+            if (children != null && !children.isEmpty()) {
+                for (Adat child : children) {
+                    includeBaseAttributes(a, child, tree);
+                }
+            }
+        }
+    }
+
+    /*
     int count=0;
     String temp = "";
     //Same PANs
@@ -76,4 +113,5 @@ public class ATR_Derived extends adatToRelations{
         }
         return output;
     }
+    */
 }

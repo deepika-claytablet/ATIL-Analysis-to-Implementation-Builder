@@ -70,16 +70,12 @@ public class ATR_Mixed extends adatToRelations{
                     output = output + "\n"+ arl.createForContent(mla, a, analysis_property, arArray);
                     break;
                 }
+                case "derived":
                 case "derived1":
-                {
-                    ATR_Derived arl = new ATR_Derived(a);
-                    output = output + "\n"+arl.createDerivedCase1(a, mla, analysis_property, arArray);
-                    break;
-                }
                 case "derived2":
                 {
                     ATR_Derived arl = new ATR_Derived(a);
-                    output = output + "\n"+arl.createDerivedCase2(a, mla, analysis_property, arArray);
+                    output = output + "\n"+arl.createDerived(a, mla, analysis_property, arArray);
                     break;
                 }
                 case "complex1":

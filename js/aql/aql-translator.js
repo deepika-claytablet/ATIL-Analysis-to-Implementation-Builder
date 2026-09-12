@@ -7,10 +7,12 @@
 import { LINK_TYPES, NODE_TYPES } from '../schema-model.js';
 
 export class AQLTranslator {
-  constructor(model, report) {
+  constructor(model, report, outputSqlText = null) {
     this.model = model;
     this.report = report;
+    this.outputSqlText = outputSqlText;
     this.buildIndex();
+    this.initLogicalTables();
   }
 
   buildIndex() {
@@ -26,6 +28,293 @@ export class AQLTranslator {
     });
   }
 
+  initLogicalTables() {
+    if (this.outputSqlText) {
+      this.logicalTables = this.parseRelationalSchema(this.outputSqlText);
+    }
+    if (!this.logicalTables || this.logicalTables.size === 0) {
+      this.logicalTables = this.synthesizeLogicalTables();
+    }
+  }
+
+  parseRelationalSchema(sqlText) {
+    const tables = new Map();
+    if (!sqlText || typeof sqlText !== 'string') return tables;
+
+    // 1. Parse create table statements
+    const createTableRegex = /create\s+table(?:\s+if\s+not\s+exists)?\s+([a-zA-Z0-9_]+)\s*\(([\s\S]*?)\);/gi;
+    let match;
+    while ((match = createTableRegex.exec(sqlText)) !== null) {
+      const rawTableName = match[1].trim();
+      const body = match[2];
+      const normTableName = this.normalize(rawTableName);
+
+      const tableInfo = {
+        name: rawTableName,
+        columns: new Map(),
+        primaryKey: null,
+        foreignKeys: []
+      };
+
+      const lines = body.split(/[\r\n]+/);
+      lines.forEach(line => {
+        const trimmed = line.trim().replace(/,$/, '');
+        if (!trimmed) return;
+
+        if (trimmed.toUpperCase().includes('PRIMARY KEY')) {
+          const inlinePk = trimmed.match(/^([a-zA-Z0-9_]+)\s+[a-zA-Z0-9_()]+\s+PRIMARY\s+KEY/i);
+          const tablePk = trimmed.match(/PRIMARY\s+KEY\s*\(\s*([a-zA-Z0-9_]+)\s*\)/i);
+          const pkCol = inlinePk ? inlinePk[1] : (tablePk ? tablePk[1] : null);
+          if (pkCol) {
+            tableInfo.primaryKey = pkCol.trim();
+            tableInfo.columns.set(this.normalize(pkCol), pkCol.trim());
+          }
+        } else {
+          const colMatch = trimmed.match(/^([a-zA-Z0-9_]+)\s+/);
+          if (colMatch) {
+            tableInfo.columns.set(this.normalize(colMatch[1]), colMatch[1].trim());
+          }
+        }
+      });
+
+      tables.set(normTableName, tableInfo);
+    }
+
+    // 2. Parse alter table statements
+    const alterRegex = /alter\s+table\s+([a-zA-Z0-9_]+)\s+add\s+([\s\S]*?);/gi;
+    while ((match = alterRegex.exec(sqlText)) !== null) {
+      const rawTableName = match[1].trim();
+      const rest = match[2].trim();
+      const normTableName = this.normalize(rawTableName);
+      let tableInfo = tables.get(normTableName);
+      if (!tableInfo) {
+        tableInfo = { name: rawTableName, columns: new Map(), primaryKey: null, foreignKeys: [] };
+        tables.set(normTableName, tableInfo);
+      }
+
+      const fkMatch = rest.match(/foreign\s+key\s*\(\s*([a-zA-Z0-9_]+)\s*\)\s*references\s+([a-zA-Z0-9_]+)\s*\(\s*([a-zA-Z0-9_]+)\s*\)/i);
+      if (fkMatch) {
+        tableInfo.foreignKeys.push({
+          column: fkMatch[1].trim(),
+          refTable: fkMatch[2].trim(),
+          refColumn: fkMatch[3].trim()
+        });
+      } else {
+        const colMatch = rest.match(/^([a-zA-Z0-9_]+)\s+/);
+        if (colMatch) {
+          tableInfo.columns.set(this.normalize(colMatch[1]), colMatch[1].trim());
+        }
+      }
+    }
+
+    return tables;
+  }
+
+  synthesizeLogicalTables() {
+    const tables = new Map();
+    const panNodes = Array.from(this.model.nodes.values()).filter(n => n.type === NODE_TYPES.PAN);
+    const adatNodes = Array.from(this.model.nodes.values()).filter(n => n.type === NODE_TYPES.ADAT);
+
+    const isabEdges = Array.from(this.model.edges.values()).filter(e => e.linkType === LINK_TYPES.SOLID);
+    const panHasISAB = (nodeId) => isabEdges.some(e => e.sourceId === nodeId || e.targetId === nodeId);
+
+    const panParentToChildren = new Map();
+    const panChildToParent = new Map();
+    const panTreeTypes = [LINK_TYPES.UML_INHERITANCE, LINK_TYPES.COMPLETE_C, LINK_TYPES.AGGREGATION_DIAMOND];
+
+    Array.from(this.model.edges.values()).forEach(e => {
+      if (panTreeTypes.includes(e.linkType)) {
+        const s = this.model.nodes.get(e.sourceId);
+        const t = this.model.nodes.get(e.targetId);
+        if (s?.type === NODE_TYPES.PAN && t?.type === NODE_TYPES.PAN) {
+          if (!panParentToChildren.has(e.targetId)) panParentToChildren.set(e.targetId, []);
+          panParentToChildren.get(e.targetId).push({ childId: e.sourceId, linkType: e.linkType });
+          panChildToParent.set(e.sourceId, e.targetId);
+        }
+      }
+    });
+
+    const rootPanIds = Array.from(panParentToChildren.keys()).filter(pid => !panChildToParent.has(pid));
+    const processedPanIds = new Set();
+
+    rootPanIds.forEach(rootId => {
+      const rootNode = this.model.nodes.get(rootId);
+      const rootName = rootNode.name.trim().replace(/[\s\-]+/g, '_');
+      const children = panParentToChildren.get(rootId) || [];
+      const linkType = children.length > 0 ? children[0].linkType : LINK_TYPES.UML_INHERITANCE;
+
+      if (linkType === LINK_TYPES.UML_INHERITANCE) {
+        const rootHasIsab = panHasISAB(rootId);
+        const childIds = [];
+        const queue = [rootId];
+        while (queue.length > 0) {
+          const curr = queue.shift();
+          (panParentToChildren.get(curr) || []).forEach(c => {
+            childIds.push(c.childId);
+            queue.push(c.childId);
+          });
+        }
+        const nonRootsWithIsab = childIds.filter(id => panHasISAB(id));
+
+        if (rootHasIsab && nonRootsWithIsab.length === 0) {
+          const tInfo = { name: `Dim_${rootName}`, columns: new Map(), primaryKey: `${rootName}_SK`, foreignKeys: [] };
+          tInfo.columns.set(this.normalize(`${rootName}_SK`), `${rootName}_SK`);
+          (rootNode.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+          childIds.forEach(cid => {
+            const cn = this.model.nodes.get(cid);
+            if (cn) {
+              const cnName = cn.name.trim().replace(/[\s\-]+/g, '_');
+              tInfo.columns.set(this.normalize(`${cnName}_SK`), `${cnName}_SK`);
+              (cn.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+            }
+          });
+          tables.set(this.normalize(`Dim_${rootName}`), tInfo);
+          processedPanIds.add(rootId);
+          childIds.forEach(id => processedPanIds.add(id));
+        } else if (!rootHasIsab && nonRootsWithIsab.length > 0) {
+          nonRootsWithIsab.forEach(childId => {
+            const childNode = this.model.nodes.get(childId);
+            const childName = childNode.name.trim().replace(/[\s\-]+/g, '_');
+            const tInfo = { name: `Dim_${childName}`, columns: new Map(), primaryKey: `${childName}_SK`, foreignKeys: [] };
+            tInfo.columns.set(this.normalize(`${childName}_SK`), `${childName}_SK`);
+            tInfo.columns.set(this.normalize(`${rootName}_SK`), `${rootName}_SK`);
+            (childNode.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+            (rootNode.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+            tables.set(this.normalize(`Dim_${childName}`), tInfo);
+            processedPanIds.add(childId);
+          });
+          processedPanIds.add(rootId);
+          childIds.forEach(id => processedPanIds.add(id));
+        } else {
+          const tInfo = { name: `Dim_${rootName}`, columns: new Map(), primaryKey: `${rootName}_SK`, foreignKeys: [] };
+          tInfo.columns.set(this.normalize(`${rootName}_SK`), `${rootName}_SK`);
+          (rootNode.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+          tables.set(this.normalize(`Dim_${rootName}`), tInfo);
+          processedPanIds.add(rootId);
+        }
+      } else if (linkType === LINK_TYPES.COMPLETE_C) {
+        const tInfo = { name: `Dim_${rootName}`, columns: new Map(), primaryKey: `${rootName}_SK`, foreignKeys: [] };
+        tInfo.columns.set(this.normalize(`${rootName}_SK`), `${rootName}_SK`);
+        (rootNode.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+
+        const queue = [rootId];
+        while (queue.length > 0) {
+          const curr = queue.shift();
+          (panParentToChildren.get(curr) || []).forEach(c => {
+            const cn = this.model.nodes.get(c.childId);
+            if (cn) {
+              const cnName = cn.name.trim().replace(/[\s\-]+/g, '_');
+              tInfo.columns.set(this.normalize(`${cnName}_SK`), `${cnName}_SK`);
+              (cn.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+              processedPanIds.add(c.childId);
+              queue.push(c.childId);
+            }
+          });
+        }
+        tables.set(this.normalize(`Dim_${rootName}`), tInfo);
+        processedPanIds.add(rootId);
+      }
+    });
+
+    panNodes.forEach(node => {
+      if (!processedPanIds.has(node.id)) {
+        const panName = node.name.trim().replace(/[\s\-]+/g, '_');
+        const tInfo = { name: `Dim_${panName}`, columns: new Map(), primaryKey: `${panName}_SK`, foreignKeys: [] };
+        tInfo.columns.set(this.normalize(`${panName}_SK`), `${panName}_SK`);
+        (node.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+        tables.set(this.normalize(`Dim_${panName}`), tInfo);
+      }
+    });
+
+    adatNodes.forEach(node => {
+      const adatName = node.name.trim().replace(/[\s\-]+/g, '_');
+      const tInfo = { name: adatName, columns: new Map(), primaryKey: `${adatName}_Key`, foreignKeys: [] };
+      tInfo.columns.set(this.normalize(`${adatName}_Key`), `${adatName}_Key`);
+      (node.attributes || []).forEach(a => tInfo.columns.set(this.normalize(a.name), a.name));
+
+      isabEdges.forEach(e => {
+        if (e.sourceId === node.id || e.targetId === node.id) {
+          const panId = (e.sourceId === node.id) ? e.targetId : e.sourceId;
+          const pan = this.model.nodes.get(panId);
+          if (pan && pan.type === NODE_TYPES.PAN) {
+            const panName = pan.name.trim().replace(/[\s\-]+/g, '_');
+            const targetDimName = `Dim_${panName}`;
+            let refDim = tables.get(this.normalize(targetDimName));
+            if (!refDim) {
+              for (const [tName, info] of tables.entries()) {
+                if (info.columns.has(this.normalize(`${panName}_SK`))) {
+                  refDim = info;
+                  break;
+                }
+              }
+            }
+            if (refDim) {
+              const fkCol = refDim.primaryKey;
+              tInfo.columns.set(this.normalize(fkCol), fkCol);
+              tInfo.foreignKeys.push({
+                column: fkCol,
+                refTable: refDim.name,
+                refColumn: refDim.primaryKey
+              });
+            }
+          }
+        }
+      });
+
+      tables.set(this.normalize(adatName), tInfo);
+    });
+
+    return tables;
+  }
+
+  findTableForPan(panNode, attrName = null) {
+    if (!panNode) return null;
+    const panName = panNode.name.trim().replace(/[\s\-]+/g, '_');
+    const directDim = `Dim_${panName}`;
+    const directTable = this.logicalTables.get(this.normalize(directDim));
+    if (directTable) {
+      return directTable;
+    }
+
+    const skCol = this.normalize(`${panName}_SK`);
+    for (const [tName, info] of this.logicalTables.entries()) {
+      if (info.columns.has(skCol)) {
+        return info;
+      }
+    }
+
+    if (attrName) {
+      const normAttr = this.normalize(attrName);
+      for (const [tName, info] of this.logicalTables.entries()) {
+        if (info.name.startsWith('Dim_') && info.columns.has(normAttr)) {
+          return info;
+        }
+      }
+    }
+
+    if (panNode.attributes && panNode.attributes.length > 0) {
+      for (const attr of panNode.attributes) {
+        const normAttr = this.normalize(attr.name);
+        for (const [tName, info] of this.logicalTables.entries()) {
+          if (info.name.startsWith('Dim_') && info.columns.has(normAttr)) {
+            return info;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  findForeignKey(mainAdatName, targetTableName) {
+    const adatTable = this.logicalTables.get(this.normalize(mainAdatName));
+    if (!adatTable) return null;
+
+    const normTarget = this.normalize(targetTableName);
+    const match = adatTable.foreignKeys.find(fk => this.normalize(fk.refTable) === normTarget);
+    return match || null;
+  }
+
   normalize(str) {
     if (!str) return '';
     return str.trim().toLowerCase().replace(/[\s\-]+/g, '_');
@@ -38,7 +327,6 @@ export class AQLTranslator {
 
     let sql = this.translateSingleQuery(ast);
 
-    // If there are chained set operations: UNION [ALL], INTERSECT, EXCEPT
     if (ast.setOperations && ast.setOperations.length > 0) {
       ast.setOperations.forEach(setOp => {
         const subSql = this.translateSingleQuery(setOp.query);
@@ -56,7 +344,6 @@ export class AQLTranslator {
   }
 
   translateSingleQuery(queryAst) {
-    // Identify driving ADAT and PAN iterators for this specific subquery
     let mainAdatName = '';
     let adatAlias = '';
     const panIterators = [];
@@ -76,14 +363,12 @@ export class AQLTranslator {
         return;
       }
 
-      // Standalone PAN iterator in FROM, e.g. "FROM SALE S, Customer C"
       const directPan = this.pansByName.get(firstNorm);
       if (directPan && parts.length === 1) {
         panIterators.push({ alias: normAlias, targetAlias: rawAlias, panChain: [directPan] });
         return;
       }
 
-      // Check if parts[0] is alias or ADAT with remaining PAN chain
       if (parts.length > 1) {
         const panNames = parts.slice(1);
         const panChain = [];
@@ -92,16 +377,6 @@ export class AQLTranslator {
           if (p) panChain.push(p);
         });
         if (panChain.length > 0) {
-          const firstPan = panChain[0];
-          const parentEdge = this.model.edges ? Array.from(this.model.edges.values()).find(
-            e => e.sourceId === firstPan.id && e.linkType === LINK_TYPES.COMPLETE_C
-          ) : null;
-          if (parentEdge) {
-            const parentPan = this.model.nodes.get(parentEdge.targetId);
-            if (parentPan && !panChain.some(p => p.id === parentPan.id)) {
-              panChain.unshift(parentPan);
-            }
-          }
           panIterators.push({ alias: normAlias, targetAlias: rawAlias, panChain });
         }
       }
@@ -118,7 +393,6 @@ export class AQLTranslator {
       }
     }
 
-    // Auto-detect any PANs referenced in expressions (Option A: S.customer.name) not already in panIterators
     const scanForChains = (expr) => {
       if (!expr) return;
       if (expr.type === 'CHAIN' && expr.parts.length > 2) {
@@ -144,34 +418,30 @@ export class AQLTranslator {
     if (queryAst.having) scanForChains(queryAst.having);
     if (queryAst.orderBy) queryAst.orderBy.forEach(o => scanForChains(o.expr));
 
-    // Build SELECT projections
     const selectClauses = queryAst.select.map(item => this.translateSelectItem(item, adatAlias)).join(',\n       ');
 
-    // Build FROM and JOINs
+    // Build FROM and JOINs using logical tables from Convert to Logical layer
     let fromClause = `${mainAdatName} ${adatAlias}`;
     const joins = [];
-    const joinedPanIds = new Set();
+    const joinedTables = new Set();
 
     panIterators.forEach(info => {
       const panChain = info.panChain;
       const targetAlias = info.targetAlias;
+      const targetPan = panChain[panChain.length - 1];
 
-      for (let i = 0; i < panChain.length; i++) {
-        const pan = panChain[i];
-        if (joinedPanIds.has(pan.id)) continue;
-        joinedPanIds.add(pan.id);
+      const targetTable = this.findTableForPan(targetPan);
+      if (targetTable) {
+        const tableKey = `${targetTable.name.toLowerCase()}_${targetAlias.toLowerCase()}`;
+        if (joinedTables.has(tableKey)) return;
+        joinedTables.add(tableKey);
 
-        const panName = pan.name.trim().replace(/[\s\-]+/g, '_');
-        const dimTable = `Dim_${panName}`;
-        const currentAlias = (i === panChain.length - 1) ? targetAlias : `${panName.toLowerCase()}_dim`;
-
-        if (i === 0) {
-          joins.push(`INNER JOIN ${dimTable} ${currentAlias} ON ${currentAlias}.${panName}_SK = ${adatAlias}.${panName}_SK`);
+        const fk = this.findForeignKey(mainAdatName, targetTable.name);
+        if (fk) {
+          joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${targetAlias}.${fk.refColumn} = ${adatAlias}.${fk.column}`);
         } else {
-          const parentPan = panChain[i - 1];
-          const parentPanName = parentPan.name.trim().replace(/[\s\-]+/g, '_');
-          const parentAlias = (i - 1 === panChain.length - 1) ? targetAlias : `${parentPanName.toLowerCase()}_dim`;
-          joins.push(`INNER JOIN ${dimTable} ${currentAlias} ON ${currentAlias}.${panName}_SK = ${parentAlias}.${panName}_SK`);
+          const pk = targetTable.primaryKey || `${targetTable.name.replace(/^Dim_/, '')}_SK`;
+          joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${targetAlias}.${pk} = ${adatAlias}.${pk}`);
         }
       }
     });
@@ -180,6 +450,30 @@ export class AQLTranslator {
     if (joins.length > 0) {
       fullFrom += '\n' + joins.join('\n');
     }
+
+    let whereClause = '';
+    if (queryAst.where) {
+      whereClause = '\nWHERE ' + this.translateExpression(queryAst.where, adatAlias);
+    }
+
+    let groupByClause = '';
+    if (queryAst.groupBy && queryAst.groupBy.length > 0) {
+      groupByClause = '\nGROUP BY ' + queryAst.groupBy.map(expr => this.translateExpression(expr, adatAlias)).join(', ');
+    }
+
+    let havingClause = '';
+    if (queryAst.having) {
+      havingClause = '\nHAVING ' + this.translateExpression(queryAst.having, adatAlias);
+    }
+
+    let orderByClause = '';
+    if (queryAst.orderBy && queryAst.orderBy.length > 0) {
+      orderByClause = '\nORDER BY ' + queryAst.orderBy.map(item => `${this.translateExpression(item.expr, adatAlias)} ${item.direction}`).join(', ');
+    }
+
+    const distinctStr = queryAst.isDistinct ? 'DISTINCT ' : '';
+    return `SELECT ${distinctStr}${selectClauses}\nFROM ${fullFrom}${whereClause}${groupByClause}${havingClause}${orderByClause}`;
+  }
 
     // Build WHERE clause
     let whereClause = '';

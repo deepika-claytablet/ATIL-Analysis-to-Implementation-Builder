@@ -349,11 +349,6 @@ export class AQLChecker {
       return true;
     }
 
-    const specGroup = this.getSpecializationTreeGroup(panNode);
-    if (specGroup.some(sp => this.hasDirectISAB(adatNode, sp))) {
-      return true;
-    }
-
     return false;
   }
 
@@ -1187,12 +1182,18 @@ export class AQLChecker {
         pans.forEach(pan => {
           let canAnalyse = this.hasISAB(adat, pan);
           if (!canAnalyse) {
+            // Check if pan is a specialization descendant of a parent PAN that has ISAB to adat
             let curr = pan;
-            while (this.panTreeParents.has(curr.id)) {
+            while (curr && this.panTreeParents.has(curr.id)) {
               const parentInfo = this.panTreeParents.get(curr.id);
-              curr = this.model.nodes.get(parentInfo.parentId);
-              if (this.hasISAB(adat, curr)) {
-                canAnalyse = true;
+              if (parentInfo.edge.linkType === LINK_TYPES.UML_INHERITANCE) {
+                const parentNode = this.model.nodes.get(parentInfo.parentId);
+                if (parentNode && this.hasISAB(adat, parentNode)) {
+                  canAnalyse = true;
+                  break;
+                }
+                curr = parentNode;
+              } else {
                 break;
               }
             }

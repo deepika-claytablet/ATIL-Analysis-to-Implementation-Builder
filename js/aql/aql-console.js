@@ -272,7 +272,8 @@ export class AQLConsole {
     }
 
     try {
-      const translator = new AQLTranslator(this.model, report);
+      const outputSql = (this.app?.activeConversion?.type === 'relational' ? this.app.activeConversion.code : null);
+      const translator = new AQLTranslator(this.model, report, outputSql);
       const sql = translator.translate(ast);
       
       this.sqlCodeOutput.textContent = sql;
