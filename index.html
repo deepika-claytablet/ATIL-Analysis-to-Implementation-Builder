@@ -27,6 +27,55 @@
 
       <!-- Quick Canvas Controls -->
       <div class="canvas-controls-bar">
+        <!-- File Dropdown Menu -->
+        <div class="dropdown-menu-container" id="dropdown-file-container">
+          <button id="btn-file-menu" class="btn btn-secondary btn-file-menu" title="File Menu">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>File</span>
+            <span class="dropdown-caret">▾</span>
+          </button>
+          <div class="dropdown-menu hidden" id="dropdown-file-menu">
+            <button class="dropdown-item" id="btn-file-new">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <div class="item-text">
+                <span class="item-title">Create New Schema</span>
+                <span class="item-desc">Blank canvas for fresh design</span>
+              </div>
+            </button>
+            <button class="dropdown-item" id="btn-file-open">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              <div class="item-text">
+                <span class="item-title">Open Schema...</span>
+                <span class="item-desc">Load saved schema from storage</span>
+              </div>
+            </button>
+            <button class="dropdown-item" id="btn-file-sample">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div class="item-text">
+                <span class="item-title">Sample Schema</span>
+                <span class="item-desc">Load car_sale sample schema</span>
+              </div>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" id="btn-file-save">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <div class="item-text">
+                <span class="item-title">Save <span class="shortcut-tag">Ctrl+S</span></span>
+                <span class="item-desc">Save current schema directly</span>
+              </div>
+            </button>
+            <button class="dropdown-item" id="btn-file-save-as">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+              <div class="item-text">
+                <span class="item-title">Save As...</span>
+                <span class="item-desc">Save under a new schema name</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="divider-v"></div>
+
         <button id="btn-undo" class="icon-btn" title="Undo (Ctrl+Z)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></svg>
         </button>
@@ -48,26 +97,30 @@
         <button id="btn-clear" class="icon-btn danger" title="Clear Canvas">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
         </button>
-        <button id="btn-sample-schema" class="btn btn-secondary" title="Load Multi-Level Tree Sample">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span>Sample Schema</span>
-        </button>
-        <button id="btn-open-schema" class="btn btn-secondary" title="Retrieve previously saved ADAPT schemas">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-          <span>Open Schema</span>
-        </button>
       </div>
 
       <!-- Action Buttons -->
       <div class="action-buttons-group">
         <!-- Main SAVE Button -->
-        <button id="btn-save-image" class="btn btn-action btn-save-main" title="Save ADAPT Schema and create folder with PANCSVFiles, AdatCSVFiles, ISAB.TXT, and image">
+        <button id="btn-save-image" class="btn btn-action btn-save-main" title="Save schema directly (Ctrl+S) or prompt if untitled">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
             <polyline points="17 21 17 13 7 13 7 21"/>
             <polyline points="7 3 7 8 15 8"/>
           </svg>
-          <span>SAVE</span>
+          <span>Save</span>
+        </button>
+
+        <!-- Save As Button -->
+        <button id="btn-save-as" class="btn btn-action btn-save-as" title="Save schema under a new name...">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+          <span>Save As...</span>
         </button>
 
         <!-- Convert to Logical Dropdown Menu -->
@@ -283,7 +336,6 @@
           <!-- Floating Status Overlay -->
           <div class="canvas-status-bar">
             <div class="status-left">
-              <span id="schema-current-name" style="color:#0284C7; font-weight:800; margin-right:8px;">[Untitled Schema]</span>
               <span id="schema-stats">0 PANs | 0 ADATs | 0 Connections</span>
             </div>
             <div class="status-right">

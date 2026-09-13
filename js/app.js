@@ -14,7 +14,8 @@ import { AQLConsole } from './aql/aql-console.js';
 
 class Application {
   constructor() {
-    this.currentSchemaName = 'sale';
+    this.currentSchemaName = 'car_sale';
+    this.isNewSchema = false;
     this.model = new SchemaModel();
     this.initElements();
     this.canvas = new CanvasEngine(this.model, this.elements);
@@ -75,19 +76,31 @@ class Application {
       legacyKeys.forEach(k => localStorage.removeItem(k));
     } catch (e) {}
 
-    // Always load the official clean 'sale' sample schema on initial start
-    this.loadSampleSchema();
+    // Always load the official clean 'car_sale' sample schema on initial start
+    this.loadSampleSchema('car_sale');
   }
 
-  loadSampleSchema() {
-    this.currentSchemaName = 'sale';
-    this.model.fromJSON(SAMPLE_SCHEMAS.sale);
+  loadSampleSchema(name = 'car_sale') {
+    const schemaData = SAMPLE_SCHEMAS[name] || SAMPLE_SCHEMAS.car_sale || SAMPLE_SCHEMAS.sale;
+    this.currentSchemaName = name;
+    this.isNewSchema = false;
+    this.model.fromJSON(schemaData);
     this.updateSchemaNameBadge(this.currentSchemaName);
     this.inspector?.collapse();
     this.canvas.deselectAll();
     setTimeout(() => {
       this.canvas.fitToScreen();
     }, 100);
+  }
+
+  createNewSchema() {
+    this.model.clear();
+    this.currentSchemaName = 'Untitled';
+    this.isNewSchema = true;
+    this.updateSchemaNameBadge(this.currentSchemaName);
+    this.inspector?.collapse();
+    this.canvas.deselectAll();
+    this.showToast('Created new blank schema', 'info');
   }
 
   updateSchemaNameBadge(name) {
@@ -109,14 +122,13 @@ class Application {
     
     document.getElementById('btn-clear')?.addEventListener('click', () => {
       if (confirm('Clear the entire schema canvas?')) {
-        this.model.clear();
-        this.showToast('Canvas cleared', 'info');
+        this.createNewSchema();
       }
     });
 
     document.getElementById('btn-sample-schema')?.addEventListener('click', () => {
-      this.loadSampleSchema();
-      this.showToast('Loaded sample schema: sale', 'success');
+      this.loadSampleSchema('car_sale');
+      this.showToast('Loaded sample schema: car_sale', 'success');
     });
 
     document.getElementById('btn-open-schema')?.addEventListener('click', () => {
@@ -142,33 +154,78 @@ class Application {
     });
   }
 
-  // --- Top Bar Action Buttons ---
+  // --- Top Bar Action Buttons & Dropdowns ---
 
   bindActionButtons() {
-    // 1. Main SAVE Button: Opens modal to name schema and export all files
-    document.getElementById('btn-save-image')?.addEventListener('click', () => {
+    // 1. File Dropdown Menu
+    const fileBtn = document.getElementById('btn-file-menu');
+    const fileMenu = document.getElementById('dropdown-file-menu');
+    fileBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.dropdown-menu').forEach(m => {
+        if (m !== fileMenu) m.classList.add('hidden');
+      });
+      fileMenu?.classList.toggle('hidden');
+    });
+
+    document.getElementById('btn-file-new')?.addEventListener('click', () => {
+      fileMenu?.classList.add('hidden');
+      this.createNewSchema();
+    });
+
+    document.getElementById('btn-file-open')?.addEventListener('click', () => {
+      fileMenu?.classList.add('hidden');
+      this.openLoadSchemaModal();
+    });
+
+    document.getElementById('btn-file-sample')?.addEventListener('click', () => {
+      fileMenu?.classList.add('hidden');
+      this.loadSampleSchema('car_sale');
+      this.showToast('Loaded sample schema: car_sale', 'success');
+    });
+
+    document.getElementById('btn-file-save')?.addEventListener('click', () => {
+      fileMenu?.classList.add('hidden');
+      this.doSave();
+    });
+
+    document.getElementById('btn-file-save-as')?.addEventListener('click', () => {
+      fileMenu?.classList.add('hidden');
       this.openSaveImageModal();
     });
 
-    // 2. "Convert to Logical" Dropdown Menu
+    // 2. Action Buttons: Save & Save As
+    document.getElementById('btn-save-image')?.addEventListener('click', () => {
+      this.doSave();
+    });
+
+    document.getElementById('btn-save-as')?.addEventListener('click', () => {
+      this.openSaveImageModal();
+    });
+
+    // 3. "Convert to Logical" Dropdown Menu
     const convertBtn = document.getElementById('btn-convert-logical');
     const convertMenu = document.getElementById('dropdown-convert-menu');
     convertBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
+      document.querySelectorAll('.dropdown-menu').forEach(m => {
+        if (m !== convertMenu) m.classList.add('hidden');
+      });
       convertMenu?.classList.toggle('hidden');
     });
 
+    // Close dropdowns when clicking outside
     document.addEventListener('click', () => {
-      convertMenu?.classList.add('hidden');
+      document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
     });
 
-    // 2a. Relational choice
+    // 3a. Relational choice
     document.getElementById('btn-to-relational')?.addEventListener('click', () => {
       convertMenu?.classList.add('hidden');
       this.runConversion('relational');
     });
 
-    // 2b. Column Family choice (commented out for later cleanup)
+    // 3b. Column Family choice (commented out for later cleanup)
     // document.getElementById('btn-to-columnfamily')?.addEventListener('click', () => {
     //   convertMenu?.classList.add('hidden');
     //   this.runConversion('columnfamily');
@@ -178,6 +235,52 @@ class Application {
     this.model.subscribe(() => {
       this.aqlConsole?.populateSampleQueries();
     });
+  }
+
+  // --- Save Operations ---
+
+  async doSave() {
+    // 1. Validate standalone nodes must have at least one attribute
+    const validation = this.model.validateStandaloneAttributes();
+    if (!validation.valid) {
+      this.showToast(validation.message, 'error');
+      alert(validation.message);
+      if (validation.node) {
+        this.canvas.selectElement('node', validation.node.id);
+        this.inspector?.expand();
+      }
+      return;
+    }
+
+    // If new or untitled schema, open Save modal to give it a name
+    if (this.isNewSchema || !this.currentSchemaName || this.currentSchemaName === 'Untitled') {
+      this.openSaveImageModal();
+      return;
+    }
+
+    // Existing schema: silently save directly into schemas/<currentSchemaName>/
+    const schemaName = this.currentSchemaName.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
+    if (!schemaName) {
+      this.openSaveImageModal();
+      return;
+    }
+
+    try {
+      const result = await this.imageExporter.saveExportPackage(schemaName, 'png', 2, '#ffffff');
+      this.updateSchemaNameBadge(schemaName);
+      this.isNewSchema = false;
+
+      if (result.success && result.savedFiles.length > 0) {
+        this.showToast(`Saved schema into folder "schemas/${schemaName}/" with ${result.savedFiles.length} files!`, 'success');
+      } else {
+        const isab = this.imageExporter.generateISABFile();
+        this.imageExporter.downloadFile(isab, 'ISAB.TXT', 'text/plain');
+        this.showToast(`Schema "${schemaName}" saved and exported successfully!`, 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      this.showToast('Error saving schema: ' + err.message, 'error');
+    }
   }
 
   // --- Modal Logic ---
@@ -249,6 +352,8 @@ class Application {
 
       try {
         const result = await this.imageExporter.saveExportPackage(schemaName, format, scale, bg);
+        this.currentSchemaName = schemaName;
+        this.isNewSchema = false;
         this.updateSchemaNameBadge(schemaName);
 
         // Also trigger image download in browser
@@ -286,6 +391,8 @@ class Application {
           const json = JSON.parse(ev.target.result);
           const name = file.name.replace(/\.json$/i, '');
           this.model.fromJSON(json);
+          this.currentSchemaName = name;
+          this.isNewSchema = false;
           this.updateSchemaNameBadge(name);
           this.canvas.fitToScreen();
           this.showToast(`Loaded schema from ${file.name}`, 'success');
@@ -331,14 +438,19 @@ class Application {
     const modal = document.getElementById('modal-save-image');
     if (!modal) return;
     
-    // Start with blank input so user writes the name explicitly
     const nameInput = document.getElementById('save-schema-name');
     if (nameInput) {
-      nameInput.value = '';
+      const defaultName = (this.currentSchemaName && this.currentSchemaName !== 'Untitled') ? this.currentSchemaName : '';
+      nameInput.value = defaultName;
       nameInput.style.borderColor = '#2563EB';
       const previewFolder = document.getElementById('preview-folder-name');
-      if (previewFolder) previewFolder.textContent = '[Type Schema Name Above]/';
-      setTimeout(() => nameInput.focus(), 150);
+      if (previewFolder) {
+        previewFolder.textContent = defaultName ? `${defaultName}/` : '[Type Schema Name Above]/';
+      }
+      setTimeout(() => {
+        nameInput.focus();
+        if (nameInput.value) nameInput.select();
+      }, 150);
     }
 
     modal.classList.remove('hidden');
@@ -572,6 +684,8 @@ class Application {
         const data = await response.json();
         if (data.schema) {
           this.model.fromJSON(data.schema);
+          this.currentSchemaName = schemaName;
+          this.isNewSchema = false;
           this.updateSchemaNameBadge(schemaName);
           localStorage.setItem('adapt_last_schema', schemaName);
           setTimeout(() => this.canvas.fitToScreen(), 100);
@@ -589,6 +703,8 @@ class Application {
       try {
         const json = JSON.parse(localData);
         this.model.fromJSON(json);
+        this.currentSchemaName = schemaName;
+        this.isNewSchema = false;
         this.updateSchemaNameBadge(schemaName);
         localStorage.setItem('adapt_last_schema', schemaName);
         setTimeout(() => this.canvas.fitToScreen(), 100);
@@ -606,6 +722,13 @@ class Application {
 
   bindKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+      // Intercept Ctrl+S / Cmd+S for Save
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        this.doSave();
+        return;
+      }
+
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
         return;
       }

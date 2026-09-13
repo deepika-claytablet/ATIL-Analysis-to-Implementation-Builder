@@ -247,6 +247,136 @@ body {
   box-shadow: 0 4px 8px rgba(5, 150, 105, 0.35);
 }
 
+.btn-file-menu {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #1E293B;
+  font-weight: 700;
+}
+.btn-file-menu:hover {
+  background: #E2E8F0;
+  border-color: #94A3B8;
+}
+
+.btn-save-as {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #334155;
+  font-weight: 600;
+}
+.btn-save-as:hover {
+  background: #F1F5F9;
+  border-color: #94A3B8;
+  color: #0F172A;
+}
+
+/* Dropdown Menu System */
+.dropdown-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-caret {
+  font-size: 0.72rem;
+  margin-left: 0.2rem;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #FFFFFF;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  min-width: 230px;
+  z-index: 100;
+  padding: 0.35rem 0;
+  display: flex;
+  flex-direction: column;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+.dropdown-menu.hidden {
+  display: none !important;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  color: var(--text-main);
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.dropdown-item:hover {
+  background: #F1F5F9;
+  color: var(--primary);
+}
+
+.dropdown-item svg {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.dropdown-item .item-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.dropdown-item .item-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dropdown-item .item-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.35rem 0;
+}
+
+.shortcut-tag {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  background: #E2E8F0;
+  color: #475569;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-weight: 700;
+  border: 1px solid #CBD5E1;
+}
+
 .disabled-action,
 button:disabled {
   opacity: 0.42 !important;
