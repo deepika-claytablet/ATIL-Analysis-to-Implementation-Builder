@@ -11,8 +11,8 @@
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 1230,
-      "y": 140,
+      "x": 60,
+      "y": 1100,
       "width": 250,
       "height": 133
     },
@@ -32,8 +32,8 @@
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 750,
-      "y": 20,
+      "x": 20,
+      "y": 660,
       "width": 250,
       "height": 169
     },
@@ -53,8 +53,8 @@
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 770,
-      "y": 240,
+      "x": 20,
+      "y": 890,
       "width": 250,
       "height": 169
     },
@@ -87,8 +87,8 @@
           "dataKind": "Numeric"
         }
       ],
-      "x": 30,
-      "y": 80,
+      "x": 660,
+      "y": 720,
       "width": 250,
       "height": 208
     },
@@ -104,8 +104,8 @@
           "dataKind": "Numeric"
         }
       ],
-      "x": 20,
-      "y": 370,
+      "x": 410,
+      "y": 950,
       "width": 250,
       "height": 208
     },
@@ -121,8 +121,8 @@
           "dataKind": "Numeric"
         }
       ],
-      "x": 30,
-      "y": 640,
+      "x": 390,
+      "y": 720,
       "width": 250,
       "height": 208
     },
@@ -137,8 +137,8 @@
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 790,
-      "y": 670,
+      "x": 1190,
+      "y": 500,
       "width": 250,
       "height": 133
     },
@@ -153,8 +153,8 @@
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 1340,
-      "y": 530,
+      "x": 850,
+      "y": 520,
       "width": 250,
       "height": 133
     },
@@ -170,7 +170,7 @@
         }
       ],
       "x": 820,
-      "y": 470,
+      "y": 300,
       "width": 250,
       "height": 133
     },
@@ -190,8 +190,8 @@
           "updateType": "UPDATE"
         }
       ],
-      "x": 770,
-      "y": 840,
+      "x": 1220,
+      "y": 670,
       "width": 250,
       "height": 169
     },
@@ -202,12 +202,12 @@
       "attributes": [
         {
           "id": "pan_attr_mtwwp6cw_juyu",
-          "name": "state_name",
+          "name": "statename",
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 390,
-      "y": 730,
+      "x": 840,
+      "y": 80,
       "width": 250,
       "height": 133
     },
@@ -222,10 +222,44 @@
           "updateType": "NO UPDATE"
         }
       ],
-      "x": 420,
-      "y": 970,
+      "x": 1260,
+      "y": 310,
       "width": 250,
       "height": 133
+    },
+    {
+      "id": "adat_mtzgh110_42ac",
+      "type": "ADAT",
+      "name": "Perfomance",
+      "nature": "Structured",
+      "attributes": [
+        {
+          "id": "attr_mtzgh48d_l0t9",
+          "name": "no_sold",
+          "dataKind": "Numeric"
+        }
+      ],
+      "x": 420,
+      "y": 20,
+      "width": 250,
+      "height": 208
+    },
+    {
+      "id": "adat_mtzgva06_29n8",
+      "type": "ADAT",
+      "name": "service",
+      "nature": "Structured",
+      "attributes": [
+        {
+          "id": "attr_mtzgvnpg_srwu",
+          "name": "service_amt",
+          "dataKind": "Numeric"
+        }
+      ],
+      "x": 30,
+      "y": 290,
+      "width": 250,
+      "height": 208
     }
   ],
   "edges": [
@@ -391,11 +425,63 @@
       "targetId": "pan_mtwwihr7_yfyg",
       "linkType": "SOLID",
       "adatMultiplicity": "many",
-      "panMultiplicity": "",
+      "panMultiplicity": "one",
       "additivity": "True",
       "applicability": "True",
       "sourceAnchor": "right",
       "targetAnchor": "top",
+      "waypoint": null
+    },
+    {
+      "id": "edge_mtzgi5ub_420r",
+      "sourceId": "adat_sale",
+      "targetId": "adat_mtzgh110_42ac",
+      "linkType": "AGGREGATION_DIAMOND",
+      "adatMultiplicity": "",
+      "panMultiplicity": "",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "top",
+      "targetAnchor": "bottom",
+      "waypoint": null
+    },
+    {
+      "id": "edge_mtzgw8hd_d4zd",
+      "sourceId": "adat_mtzgva06_29n8",
+      "targetId": "adat_mtzgh110_42ac",
+      "linkType": "AGGREGATION_DIAMOND",
+      "adatMultiplicity": "",
+      "panMultiplicity": "",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "right",
+      "targetAnchor": "left",
+      "waypoint": null
+    },
+    {
+      "id": "edge_mtzgyar3_wjg8",
+      "sourceId": "adat_mtzgva06_29n8",
+      "targetId": "pan_non_perishable",
+      "linkType": "SOLID",
+      "adatMultiplicity": "many",
+      "panMultiplicity": "one",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "right",
+      "targetAnchor": "left",
+      "waypoint": null
+    },
+    {
+      "id": "edge_mtzgzdcz_vgad",
+      "sourceId": "adat_mtzgva06_29n8",
+      "targetId": "pan_perishable",
+      "linkType": "SOLID",
+      "adatMultiplicity": "many",
+      "panMultiplicity": "one",
+      "additivity": "True",
+      "applicability": "True",
+      "sourceAnchor": "right",
+      "targetAnchor": "left",
       "waypoint": null
     }
   ],

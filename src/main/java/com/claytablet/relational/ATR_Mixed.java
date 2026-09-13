@@ -58,7 +58,23 @@ public class ATR_Mixed extends adatToRelations{
         
         for(Map.Entry<Adat, Integer> me : sortedAdatpriority.entrySet()){
             Adat a = me.getKey();            
-            switch (mixedlist.get(a)){
+            
+            String linkType = mixedlist.get(a);
+            if (linkType == null) {
+                if (mla.getAdatderived() != null && mla.getAdatderived().containsKey(a)) {
+                    linkType = "derived";
+                } else if (mla.getAdatcontainment() != null && mla.getAdatcontainment().containsKey(a)) {
+                    linkType = "containment";
+                } else if (mla.getAdattree() != null && mla.getAdattree().containsKey(a)) {
+                    linkType = "specialization";
+                } else if (mla.getAdatcomplex() != null && mla.getAdatcomplex().containsKey(a)) {
+                    linkType = "complex2";
+                } else {
+                    linkType = "atomic";
+                }
+            }
+
+            switch (linkType){
                 case "atomic": 
                 {   adatToRelations arl = new adatToRelations(a);
                     output = output + "\n"+ arl.createRelation(a) + arl.createRelationships(a,arArray)
@@ -78,25 +94,21 @@ public class ATR_Mixed extends adatToRelations{
                     output = output + "\n"+arl.createDerived(a, mla, analysis_property, arArray);
                     break;
                 }
+                case "complex":
                 case "complex1":
-                {
-                    ATR_complex arl = new ATR_complex(a);
-                 //   output = output + "\n"+arl.createComplexCase1(a, mla, analysis_property, arArray);
-                    break;
-                }
                 case "complex2":
                 {
-                    ATR_complex arl = new ATR_complex(a);
-                    //output = output + "\n"+arl.createComplexCase2(a, mla, analysis_property, arArray);
                     output= output+ "\n"+ createRelation(a) + "\n" + createRelationships(a,arArray) 
                             + "\n" + createAnalysisProperty(a, analysis_property)
                             +"\n" + createDependent(a, arArray); 
                     Collection<Adat> children = tree.get(a);
-                    for (Adat i : children){ 
-                        if(!tree.containsKey(i)) {                      
-                            output = output + "\n" + "alter table " + a.getName() + " add "+ addColumn(i.getName()+"_key\tvarchar(50) PRIMARY KEY")+  " ;";
-                            output = output + "\n" + "alter table " + a.getName() + " add foreign key ("+ i.getName() +  "_key) references "+ 
-                                   i.getName() + "(" + i.getName() + "_key);";
+                    if (children != null) {
+                        for (Adat i : children){ 
+                            if(!tree.containsKey(i)) {                      
+                                output = output + "\n" + "alter table " + a.getName() + " add "+ i.getName()+"_key\tvarchar(50) ;";
+                                output = output + "\n" + "alter table " + a.getName() + " add foreign key ("+ i.getName() +  "_key) references "+ 
+                                       i.getName() + "(" + i.getName() + "_key);";
+                            }
                         }
                     }
                     break;

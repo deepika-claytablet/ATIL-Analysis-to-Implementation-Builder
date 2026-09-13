@@ -1,1 +1,1 @@
-state,state_name,NO UPDATE
+state,statename,NO UPDATE

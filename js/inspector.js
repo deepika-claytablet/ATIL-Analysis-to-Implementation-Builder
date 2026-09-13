@@ -157,14 +157,15 @@ export class InspectorPanel {
     });
 
     document.getElementById('btn-add-pan-attr').addEventListener('click', () => {
-      const attrs = [...(node.attributes || [])];
+      const latestNode = this.model.nodes.get(node.id) || node;
+      const attrs = [...(latestNode.attributes || [])];
       attrs.push({
         id: this.model.generateId('pan_attr'),
         name: `attr_${attrs.length + 1}`,
         updateType: UPDATE_TYPES.NO_UPDATE
       });
       this.model.updateNode(node.id, { attributes: attrs });
-      this.renderPANForm(node);
+      this.renderPANForm(this.model.nodes.get(node.id) || node);
       window.dispatchEvent(new CustomEvent('show_toast', { detail: { message: 'Attribute added to PAN', type: 'success' } }));
     });
 
@@ -172,9 +173,10 @@ export class InspectorPanel {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const attrId = btn.getAttribute('data-attr-id');
-        const filtered = (node.attributes || []).filter(a => a.id !== attrId);
+        const latestNode = this.model.nodes.get(node.id) || node;
+        const filtered = (latestNode.attributes || []).filter(a => a.id !== attrId);
         this.model.updateNode(node.id, { attributes: filtered });
-        this.renderPANForm(node);
+        this.renderPANForm(this.model.nodes.get(node.id) || node);
         window.dispatchEvent(new CustomEvent('show_toast', { detail: { message: 'Attribute deleted', type: 'info' } }));
       });
     });
@@ -182,25 +184,29 @@ export class InspectorPanel {
     document.querySelectorAll('.pan-attr-name-input').forEach(input => {
       const row = input.closest('.attr-item-edit');
       const attrId = row.getAttribute('data-attr-id');
-      const attr = (node.attributes || []).find(a => a.id === attrId);
-      if (!attr) return;
 
       input.addEventListener('input', (e) => {
         const val = replaceSpacesWithUnderscores(e.target);
-        attr.name = val;
-        this.model.updateNode(node.id, { attributes: node.attributes });
+        const latestNode = this.model.nodes.get(node.id);
+        if (!latestNode) return;
+        const currentAttrs = (latestNode.attributes || []).map(a =>
+          a.id === attrId ? { ...a, name: val } : a
+        );
+        this.model.updateNode(node.id, { attributes: currentAttrs });
       });
     });
 
     document.querySelectorAll('.pan-attr-update-select').forEach(select => {
       const row = select.closest('.attr-item-edit');
       const attrId = row.getAttribute('data-attr-id');
-      const attr = (node.attributes || []).find(a => a.id === attrId);
-      if (!attr) return;
 
       select.addEventListener('change', (e) => {
-        attr.updateType = e.target.value;
-        this.model.updateNode(node.id, { attributes: node.attributes });
+        const latestNode = this.model.nodes.get(node.id);
+        if (!latestNode) return;
+        const currentAttrs = (latestNode.attributes || []).map(a =>
+          a.id === attrId ? { ...a, updateType: e.target.value } : a
+        );
+        this.model.updateNode(node.id, { attributes: currentAttrs });
       });
     });
 
@@ -267,14 +273,15 @@ export class InspectorPanel {
     });
 
     document.getElementById('btn-add-adat-attr').addEventListener('click', () => {
-      const attrs = [...(node.attributes || [])];
+      const latestNode = this.model.nodes.get(node.id) || node;
+      const attrs = [...(latestNode.attributes || [])];
       attrs.push({
         id: this.model.generateId('attr'),
         name: `attr_${attrs.length + 1}`,
         dataKind: DATA_KINDS.NON_NUMERIC
       });
       this.model.updateNode(node.id, { attributes: attrs });
-      this.renderADATForm(node);
+      this.renderADATForm(this.model.nodes.get(node.id) || node);
       window.dispatchEvent(new CustomEvent('show_toast', { detail: { message: 'Attribute added to ADAT', type: 'success' } }));
     });
 
@@ -282,9 +289,10 @@ export class InspectorPanel {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const attrId = btn.getAttribute('data-attr-id');
-        const filtered = (node.attributes || []).filter(a => a.id !== attrId);
+        const latestNode = this.model.nodes.get(node.id) || node;
+        const filtered = (latestNode.attributes || []).filter(a => a.id !== attrId);
         this.model.updateNode(node.id, { attributes: filtered });
-        this.renderADATForm(node);
+        this.renderADATForm(this.model.nodes.get(node.id) || node);
         window.dispatchEvent(new CustomEvent('show_toast', { detail: { message: 'Attribute deleted', type: 'info' } }));
       });
     });
@@ -292,25 +300,29 @@ export class InspectorPanel {
     document.querySelectorAll('.adat-attr-name-input').forEach(input => {
       const row = input.closest('.attr-item-edit');
       const attrId = row.getAttribute('data-attr-id');
-      const attr = (node.attributes || []).find(a => a.id === attrId);
-      if (!attr) return;
 
       input.addEventListener('input', (e) => {
         const val = replaceSpacesWithUnderscores(e.target);
-        attr.name = val;
-        this.model.updateNode(node.id, { attributes: node.attributes });
+        const latestNode = this.model.nodes.get(node.id);
+        if (!latestNode) return;
+        const currentAttrs = (latestNode.attributes || []).map(a =>
+          a.id === attrId ? { ...a, name: val } : a
+        );
+        this.model.updateNode(node.id, { attributes: currentAttrs });
       });
     });
 
     document.querySelectorAll('.adat-attr-kind-select').forEach(select => {
       const row = select.closest('.attr-item-edit');
       const attrId = row.getAttribute('data-attr-id');
-      const attr = (node.attributes || []).find(a => a.id === attrId);
-      if (!attr) return;
 
       select.addEventListener('change', (e) => {
-        attr.dataKind = e.target.value;
-        this.model.updateNode(node.id, { attributes: node.attributes });
+        const latestNode = this.model.nodes.get(node.id);
+        if (!latestNode) return;
+        const currentAttrs = (latestNode.attributes || []).map(a =>
+          a.id === attrId ? { ...a, dataKind: e.target.value } : a
+        );
+        this.model.updateNode(node.id, { attributes: currentAttrs });
       });
     });
 

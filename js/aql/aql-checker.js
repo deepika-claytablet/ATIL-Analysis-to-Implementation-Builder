@@ -23,6 +23,19 @@ export class AQLChecker {
     return str.trim().toLowerCase().replace(/[\s\-]+/g, '_');
   }
 
+  matchAttr(aName, bName) {
+    if (!aName || !bName) return false;
+    const n1 = this.normalize(aName);
+    const n2 = this.normalize(bName);
+    if (n1 === n2) return true;
+    const clean1 = n1.replace(/_/g, '');
+    const clean2 = n2.replace(/_/g, '');
+    if (clean1 === clean2) return true;
+    const exp1 = clean1.replace(/amt/g, 'amount');
+    const exp2 = clean2.replace(/amt/g, 'amount');
+    return exp1 === exp2;
+  }
+
   buildSchemaIndices() {
     this.adatsByName = new Map();
     this.pansByName = new Map();
@@ -172,6 +185,24 @@ export class AQLChecker {
         break;
       }
     }
+
+    return attrs;
+  }
+
+  getAdatEffectiveAttributes(adatNode) {
+    if (!adatNode) return [];
+    const attrs = [...(adatNode.attributes || [])];
+
+    // If derived ADAT root, add base ADAT attributes
+    const children = this.adatTreeChildren.get(adatNode.id) || [];
+    children.forEach(c => {
+      if (c.edge.linkType === LINK_TYPES.DISJOINT_D) {
+        const child = this.model.nodes.get(c.childId);
+        if (child && child.attributes) {
+          attrs.push(...child.attributes);
+        }
+      }
+    });
 
     return attrs;
   }
@@ -741,12 +772,24 @@ export class AQLChecker {
           }
 
           if (possiblePan) {
-            const restOfChain = remaining.slice(1, remaining.length - 1);
-            const panChainParts = (secondIter && secondIter.kind === 'PAN' && secondIter.chain)
-              ? [...secondIter.chain.map(p => p.name), ...restOfChain]
-              : [possiblePan.name, ...restOfChain];
-            const panAttr = remaining[remaining.length - 1];
-            this.verifyPanChain(iter.node, panChainParts, panAttr, rawChain, clauseName, report);
+            let targetAdatForMeasure = iter.node;
+            let actualPanChainParts = (secondIter && secondIter.kind === 'PAN' && secondIter.chain)
+              ? [...secondIter.chain.map(p => p.name)]
+              : [possiblePan.name];
+
+            const middleParts = remaining.slice(1, remaining.length - 1);
+            let attrName = remaining[remaining.length - 1];
+
+            for (const mid of middleParts) {
+              const midAdat = this.adatsByName.get(this.normalize(mid));
+              if (midAdat) {
+                targetAdatForMeasure = midAdat;
+              } else {
+                actualPanChainParts.push(mid);
+              }
+            }
+
+            this.verifyPanChain(targetAdatForMeasure, actualPanChainParts, attrName, rawChain, clauseName, report);
           } else if (possibleChildAdat) {
             const restOfChain = remaining.slice(1, remaining.length - 1);
             const adatChainParts = [possibleChildAdat.name, ...restOfChain];
@@ -787,10 +830,24 @@ export class AQLChecker {
         }
 
         if (possiblePan) {
-          const restOfChain = remaining.slice(1, remaining.length - 1);
-          const panChainParts = [possiblePan.name, ...restOfChain];
-          const panAttr = remaining[remaining.length - 1];
-          this.verifyPanChain(directAdat, panChainParts, panAttr, rawChain, clauseName, report);
+          let targetAdatForMeasure = directAdat;
+          let actualPanChainParts = (secondIter && secondIter.kind === 'PAN' && secondIter.chain)
+            ? [...secondIter.chain.map(p => p.name)]
+            : [possiblePan.name];
+
+          const middleParts = remaining.slice(1, remaining.length - 1);
+          let attrName = remaining[remaining.length - 1];
+
+          for (const mid of middleParts) {
+            const midAdat = this.adatsByName.get(this.normalize(mid));
+            if (midAdat) {
+              targetAdatForMeasure = midAdat;
+            } else {
+              actualPanChainParts.push(mid);
+            }
+          }
+
+          this.verifyPanChain(targetAdatForMeasure, actualPanChainParts, attrName, rawChain, clauseName, report);
         } else if (possibleChildAdat) {
           const restOfChain = remaining.slice(1, remaining.length - 1);
           const adatChainParts = [possibleChildAdat.name, ...restOfChain];
@@ -1023,20 +1080,25 @@ export class AQLChecker {
     }
 
     // 2. Check p is attribute of Pn (including inherited attributes in Specialization trees)
-    const normAttr = this.normalize(attrName);
-    const effectiveAttrs = this.getPanEffectiveAttributes(pn);
-    const hasAttr = effectiveAttrs.some(a => this.normalize(a.name) === normAttr);
-    if (!hasAttr) {
+    //    OR check if p is a measure attribute of adatNode (measure analyzed along PAN)
+    const effectivePanAttrs = this.getPanEffectiveAttributes(pn);
+    const hasPanAttr = effectivePanAttrs.some(a => this.matchAttr(a.name, attrName));
+    const effectiveAdatAttrs = this.getAdatEffectiveAttributes(adatNode);
+    const hasAdatAttr = effectiveAdatAttrs.some(a => this.matchAttr(a.name, attrName));
+
+    if (!hasPanAttr && !hasAdatAttr) {
       checkRecord.passed = false;
-      checkRecord.conditions.push(`FAILED: '${attrName}' is not an attribute of PAN '${pn.name}'.`);
-      report.errors.push(`Error: Attribute '${attrName}' not found in PAN '${pn.name}'.`);
-    } else {
-      const isInherited = !(pn.attributes || []).some(a => this.normalize(a.name) === normAttr);
+      checkRecord.conditions.push(`FAILED: '${attrName}' is neither an attribute of PAN '${pn.name}' nor ADAT '${adatNode.name}'.`);
+      report.errors.push(`Error: Attribute '${attrName}' not found in PAN '${pn.name}' or ADAT '${adatNode.name}'.`);
+    } else if (hasPanAttr) {
+      const isInherited = !(pn.attributes || []).some(a => this.matchAttr(a.name, attrName));
       if (isInherited) {
         checkRecord.conditions.push(`PASSED: '${attrName}' is an inherited attribute of specialized PAN '${pn.name}'.`);
       } else {
         checkRecord.conditions.push(`PASSED: '${attrName}' is an attribute of PAN '${pn.name}'.`);
       }
+    } else {
+      checkRecord.conditions.push(`PASSED: '${attrName}' is a measure attribute of ADAT '${adatNode.name}' analyzed along '${pn.name}'.`);
     }
 
     if (n === 1) {

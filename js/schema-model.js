@@ -174,7 +174,9 @@ export class SchemaModel {
       patch.attributes = patch.attributes.map(a => ({
         ...a,
         name: (a.name || '').replace(/\s/g, '_'),
-        ...(node.type === NODE_TYPES.PAN ? { updateType: a.updateType || UPDATE_TYPES.NO_UPDATE } : {})
+        ...(node.type === NODE_TYPES.PAN
+          ? { updateType: a.updateType || UPDATE_TYPES.NO_UPDATE }
+          : { dataKind: a.dataKind || DATA_KINDS.NON_NUMERIC })
       }));
     }
 

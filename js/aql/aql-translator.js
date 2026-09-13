@@ -238,6 +238,24 @@ export class AQLTranslator {
           const pan = this.model.nodes.get(panId);
           if (pan && pan.type === NODE_TYPES.PAN) {
             const panName = pan.name.trim().replace(/[\s\-]+/g, '_');
+            const adatM = (e.adatMultiplicity || '').toLowerCase();
+            const panM = (e.panMultiplicity || '').toLowerCase();
+            const isMtoN = (adatM === 'many' || adatM === '*' || !adatM) && (panM === 'many' || panM === '*');
+
+            if (isMtoN) {
+              const bridgeName = `Bridge_${adatName}_${panName}`;
+              const bInfo = {
+                name: bridgeName,
+                columns: new Map([
+                  [this.normalize(`${adatName}_key`), `${adatName}_key`],
+                  [this.normalize(`${panName}_SK`), `${panName}_SK`]
+                ]),
+                primaryKey: null,
+                foreignKeys: []
+              };
+              tables.set(this.normalize(bridgeName), bInfo);
+            }
+
             const targetDimName = `Dim_${panName}`;
             let refDim = tables.get(this.normalize(targetDimName));
             if (!refDim) {
@@ -248,7 +266,7 @@ export class AQLTranslator {
                 }
               }
             }
-            if (refDim) {
+            if (refDim && !isMtoN) {
               const fkCol = refDim.primaryKey;
               tInfo.columns.set(this.normalize(fkCol), fkCol);
               tInfo.foreignKeys.push({
@@ -265,6 +283,56 @@ export class AQLTranslator {
     });
 
     return tables;
+  }
+
+  findBridgeTable(mainAdatName, panNode) {
+    if (!mainAdatName || !panNode) return null;
+    const normAdat = this.normalize(mainAdatName);
+    const panName = panNode.name.trim().replace(/[\s\-]+/g, '_');
+    const normPan = this.normalize(panName);
+
+    // Check direct bridge table name e.g. Bridge_sale_customer
+    const directBridgeName = `bridge_${normAdat}_${normPan}`;
+    const directTable = this.logicalTables.get(directBridgeName);
+    if (directTable) {
+      return directTable;
+    }
+
+    // Check all logical tables starting with Bridge_
+    for (const [tName, info] of this.logicalTables.entries()) {
+      if (tName.startsWith('bridge_') && tName.includes(normAdat) && tName.includes(normPan)) {
+        return info;
+      }
+    }
+
+    // Check if ISAB edge between this ADAT and PAN has many-to-many cardinality in conceptual model
+    const isabEdges = Array.from(this.model.edges.values()).filter(e => e.linkType === LINK_TYPES.SOLID);
+    const adatNode = Array.from(this.model.nodes.values()).find(n => n.type === NODE_TYPES.ADAT && this.normalize(n.name) === normAdat);
+    if (adatNode) {
+      const edge = isabEdges.find(e => 
+        (e.sourceId === adatNode.id && e.targetId === panNode.id) ||
+        (e.sourceId === panNode.id && e.targetId === adatNode.id)
+      );
+      if (edge) {
+        const adatM = (edge.adatMultiplicity || '').toLowerCase();
+        const panM = (edge.panMultiplicity || '').toLowerCase();
+        const isMtoN = (adatM === 'many' || adatM === '*' || !adatM) && (panM === 'many' || panM === '*');
+        if (isMtoN) {
+          const bridgeName = `Bridge_${mainAdatName}_${panName}`;
+          return {
+            name: bridgeName,
+            columns: new Map([
+              [this.normalize(`${mainAdatName}_Key`), `${mainAdatName}_Key`],
+              [this.normalize(`${panName}_SK`), `${panName}_SK`]
+            ]),
+            primaryKey: null,
+            foreignKeys: []
+          };
+        }
+      }
+    }
+
+    return null;
   }
 
   findTableForPan(panNode, attrName = null) {
@@ -320,6 +388,33 @@ export class AQLTranslator {
     return str.trim().toLowerCase().replace(/[\s\-]+/g, '_');
   }
 
+  matchAttr(aName, bName) {
+    if (!aName || !bName) return false;
+    const n1 = this.normalize(aName);
+    const n2 = this.normalize(bName);
+    if (n1 === n2) return true;
+    const clean1 = n1.replace(/_/g, '');
+    const clean2 = n2.replace(/_/g, '');
+    if (clean1 === clean2) return true;
+    const exp1 = clean1.replace(/amt/g, 'amount');
+    const exp2 = clean2.replace(/amt/g, 'amount');
+    return exp1 === exp2;
+  }
+
+  findColumnInTable(tableInfo, attrName) {
+    if (!tableInfo || !attrName) return attrName;
+    const norm = this.normalize(attrName);
+    if (tableInfo.columns.has(norm)) {
+      return tableInfo.columns.get(norm);
+    }
+    for (const [cNorm, cName] of tableInfo.columns.entries()) {
+      if (this.matchAttr(cNorm, norm)) {
+        return cName;
+      }
+    }
+    return attrName;
+  }
+
   translate(ast) {
     if (!this.report || !this.report.isValid) {
       throw new Error("Cannot translate query that failed semantic checks.");
@@ -343,9 +438,182 @@ export class AQLTranslator {
     return sql;
   }
 
+  translateMultiAdatQuery(queryAst, adatIterators, panIterators) {
+    // 1. Identify the shared dimension PAN
+    let sharedPan = null;
+    let dimAlias = 'L';
+
+    if (panIterators.length > 0) {
+      const pInfo = panIterators[0];
+      sharedPan = pInfo.panChain[pInfo.panChain.length - 1];
+      dimAlias = pInfo.targetAlias || 'L';
+    } else {
+      // Find PAN from AST chains
+      for (const item of queryAst.select) {
+        const expr = (item.type === 'AGGREGATE') ? item.argument : item.expression;
+        if (expr && expr.type === 'CHAIN' && expr.parts.length > 2) {
+          const panPart = expr.parts[1];
+          const p = this.pansByName.get(this.normalize(panPart));
+          if (p) {
+            sharedPan = p;
+            dimAlias = panPart;
+            break;
+          }
+        }
+      }
+    }
+
+    const dimTable = this.findTableForPan(sharedPan);
+    const dimTableName = dimTable ? dimTable.name : (sharedPan ? `Dim_${sharedPan.name}` : 'Dim_Table');
+    const dimPkCol = dimTable?.primaryKey || (dimTable ? this.findColumnInTable(dimTable, `${dimTableName.replace(/^Dim_/, '')}_SK`) : 'SK_Key');
+
+    // 2. Classify SELECT projections & measure aggregations
+    const dimProjections = [];
+    const adatAggregations = new Map(); // adatNormAlias -> [ { item, factCol, aggAlias, func, expr } ]
+
+    adatIterators.forEach(ai => {
+      adatAggregations.set(ai.normAlias, []);
+    });
+
+    queryAst.select.forEach((item, idx) => {
+      if (item.type === 'AGGREGATE') {
+        const arg = item.argument;
+        let matchedAdatInfo = null;
+        let attrName = '';
+
+        if (arg.type === 'CHAIN') {
+          const parts = arg.parts;
+          const firstNorm = this.normalize(parts[0]);
+
+          // Match by iterator alias
+          matchedAdatInfo = adatIterators.find(ai => ai.normAlias === firstNorm);
+          
+          // Match by ADAT name in parts
+          if (!matchedAdatInfo) {
+            for (const part of parts) {
+              const pNorm = this.normalize(part);
+              matchedAdatInfo = adatIterators.find(ai => this.normalize(ai.adatName) === pNorm || ai.normAlias === pNorm);
+              if (matchedAdatInfo) break;
+            }
+          }
+
+          attrName = parts[parts.length - 1];
+
+          // If still not matched, check which ADAT has this attribute
+          if (!matchedAdatInfo) {
+            for (const ai of adatIterators) {
+              const fTable = this.logicalTables.get(this.normalize(ai.adatName));
+              if (fTable && this.findColumnInTable(fTable, attrName) !== attrName) {
+                matchedAdatInfo = ai;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!matchedAdatInfo && adatIterators.length > 0) {
+          const adatIdx = adatAggregations.get(adatIterators[0].normAlias).length === 0 ? 0 : Math.min(1, adatIterators.length - 1);
+          matchedAdatInfo = adatIterators[adatIdx];
+        }
+
+        const factTable = this.logicalTables.get(this.normalize(matchedAdatInfo.adatName));
+        const factCol = this.findColumnInTable(factTable, attrName);
+
+        // Alias for the aggregated column
+        let aggAlias = item.alias;
+        if (!aggAlias) {
+          const normAdat = this.normalize(matchedAdatInfo.adatName);
+          if (normAdat.includes('sale')) {
+            aggAlias = 'TotalSales';
+          } else if (normAdat.includes('service')) {
+            aggAlias = 'TotalService';
+          } else {
+            aggAlias = `${item.func}_${factCol}`;
+          }
+        }
+
+        const aggInfo = {
+          item,
+          factCol,
+          aggAlias,
+          func: item.func,
+          distinct: item.distinct,
+          subqueryAlias: matchedAdatInfo.alias
+        };
+
+        adatAggregations.get(matchedAdatInfo.normAlias).push(aggInfo);
+      } else {
+        // Dimension attribute projection
+        const expr = item.expression;
+        let dimCol = '';
+        if (expr.type === 'CHAIN') {
+          const attr = expr.parts[expr.parts.length - 1];
+          dimCol = this.findColumnInTable(dimTable, attr);
+        } else {
+          dimCol = expr.value || expr.raw;
+        }
+        const projAlias = item.alias ? ` AS ${item.alias}` : '';
+        dimProjections.push(`${dimAlias}.${dimCol}${projAlias}`);
+      }
+    });
+
+    // 3. Construct outer SELECT list
+    const outerSelectList = [...dimProjections];
+    adatIterators.forEach(ai => {
+      const aggs = adatAggregations.get(ai.normAlias) || [];
+      aggs.forEach(ag => {
+        outerSelectList.push(`${ag.subqueryAlias}.${ag.aggAlias}`);
+      });
+    });
+
+    // 4. Construct Subqueries with LEFT JOINs
+    const leftJoins = [];
+
+    adatIterators.forEach(ai => {
+      const factTable = this.logicalTables.get(this.normalize(ai.adatName));
+      const factTableName = factTable ? factTable.name : ai.adatName;
+      
+      const fk = this.findForeignKey(ai.adatName, dimTableName);
+      const fkCol = fk ? fk.column : (factTable ? this.findColumnInTable(factTable, dimPkCol) : dimPkCol);
+
+      const aggs = adatAggregations.get(ai.normAlias) || [];
+      const measureExprs = aggs.map(ag => {
+        const distinctStr = ag.distinct ? 'DISTINCT ' : '';
+        return `SUM(${distinctStr}${ag.factCol}) AS ${ag.aggAlias}`;
+      });
+
+      if (measureExprs.length === 0) {
+        measureExprs.push(`COUNT(*) AS TotalCount`);
+      }
+
+      const subSql = `LEFT JOIN (
+    SELECT
+        ${fkCol},
+        ${measureExprs.join(',\n        ')}
+    FROM ${factTableName} ${ai.alias}
+    GROUP BY ${fkCol}
+) ${ai.alias}
+    ON ${dimAlias}.${dimPkCol} = ${ai.alias}.${fkCol}`;
+
+      leftJoins.push(subSql);
+    });
+
+    let sql = `SELECT ${outerSelectList.join(', ')}\nFROM ${dimTableName} ${dimAlias}\n` + leftJoins.join('\n');
+
+    if (queryAst.where) {
+      sql += `\nWHERE ` + this.translateExpression(queryAst.where, dimAlias);
+    }
+    if (queryAst.orderBy && queryAst.orderBy.length > 0) {
+      sql += `\nORDER BY ` + queryAst.orderBy.map(item => `${this.translateExpression(item.expr, dimAlias)} ${item.direction}`).join(', ');
+    }
+
+    return sql;
+  }
+
   translateSingleQuery(queryAst) {
     let mainAdatName = '';
     let adatAlias = '';
+    const adatIterators = [];
     const panIterators = [];
 
     queryAst.from.forEach(item => {
@@ -356,6 +624,12 @@ export class AQLTranslator {
 
       const directAdat = this.adatsByName.get(firstNorm);
       if (directAdat && parts.length === 1) {
+        adatIterators.push({
+          alias: rawAlias,
+          normAlias,
+          adatNode: directAdat,
+          adatName: directAdat.name.trim().replace(/[\s\-]+/g, '_')
+        });
         if (!mainAdatName) {
           mainAdatName = directAdat.name.trim().replace(/[\s\-]+/g, '_');
           adatAlias = rawAlias;
@@ -381,6 +655,10 @@ export class AQLTranslator {
         }
       }
     });
+
+    if (adatIterators.length > 1) {
+      return this.translateMultiAdatQuery(queryAst, adatIterators, panIterators);
+    }
 
     if (!mainAdatName) {
       const firstAdat = Array.from(this.adatsByName.values())[0];
@@ -418,12 +696,11 @@ export class AQLTranslator {
     if (queryAst.having) scanForChains(queryAst.having);
     if (queryAst.orderBy) queryAst.orderBy.forEach(o => scanForChains(o.expr));
 
-    const selectClauses = queryAst.select.map(item => this.translateSelectItem(item, adatAlias)).join(',\n       ');
-
     // Build FROM and JOINs using logical tables from Convert to Logical layer
     let fromClause = `${mainAdatName} ${adatAlias}`;
     const joins = [];
-    const joinedTables = new Set();
+    const tableToJoinedAlias = new Map();
+    const aliasMapping = new Map();
 
     panIterators.forEach(info => {
       const panChain = info.panChain;
@@ -432,24 +709,59 @@ export class AQLTranslator {
 
       const targetTable = this.findTableForPan(targetPan);
       if (targetTable) {
-        const tableKey = `${targetTable.name.toLowerCase()}_${targetAlias.toLowerCase()}`;
-        if (joinedTables.has(tableKey)) return;
-        joinedTables.add(tableKey);
+        const tableNorm = targetTable.name.toLowerCase();
 
-        const fk = this.findForeignKey(mainAdatName, targetTable.name);
-        if (fk) {
-          joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${targetAlias}.${fk.refColumn} = ${adatAlias}.${fk.column}`);
+        if (tableToJoinedAlias.has(tableNorm)) {
+          // If the table is already joined, reuse the existing join alias and don't create another join
+          const existingAlias = tableToJoinedAlias.get(tableNorm);
+          aliasMapping.set(info.alias, existingAlias);
+          aliasMapping.set(this.normalize(targetAlias), existingAlias);
+          panChain.forEach(p => {
+            aliasMapping.set(this.normalize(p.name), existingAlias);
+          });
+          return;
+        }
+
+        tableToJoinedAlias.set(tableNorm, targetAlias);
+        aliasMapping.set(info.alias, targetAlias);
+        aliasMapping.set(this.normalize(targetAlias), targetAlias);
+        panChain.forEach(p => {
+          aliasMapping.set(this.normalize(p.name), targetAlias);
+        });
+
+        const bridgeTable = this.findBridgeTable(mainAdatName, targetPan);
+        if (bridgeTable) {
+          const bridgeAlias = `B_${targetAlias}`;
+          const adatTable = this.logicalTables.get(this.normalize(mainAdatName));
+          const adatPkCol = adatTable?.primaryKey || `${mainAdatName}_Key`;
+          const bridgeAdatCol = this.findColumnInTable(bridgeTable, adatPkCol) || adatPkCol;
+
+          const panPkCol = targetTable.primaryKey || `${targetPan.name.replace(/^Dim_/, '')}_SK`;
+          const bridgePanCol = this.findColumnInTable(bridgeTable, panPkCol) || panPkCol;
+
+          joins.push(`INNER JOIN ${bridgeTable.name} ${bridgeAlias} ON ${adatAlias}.${adatPkCol} = ${bridgeAlias}.${bridgeAdatCol}`);
+          joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${bridgeAlias}.${bridgePanCol} = ${targetAlias}.${panPkCol}`);
         } else {
-          const pk = targetTable.primaryKey || `${targetTable.name.replace(/^Dim_/, '')}_SK`;
-          joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${targetAlias}.${pk} = ${adatAlias}.${pk}`);
+          const fk = this.findForeignKey(mainAdatName, targetTable.name);
+          if (fk) {
+            joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${targetAlias}.${fk.refColumn} = ${adatAlias}.${fk.column}`);
+          } else {
+            const pk = targetTable.primaryKey || `${targetTable.name.replace(/^Dim_/, '')}_SK`;
+            joins.push(`INNER JOIN ${targetTable.name} ${targetAlias} ON ${targetAlias}.${pk} = ${adatAlias}.${pk}`);
+          }
         }
       }
     });
+
+    this.currentAliasMapping = aliasMapping;
+    this.currentTableToJoinedAlias = tableToJoinedAlias;
 
     let fullFrom = fromClause;
     if (joins.length > 0) {
       fullFrom += '\n' + joins.join('\n');
     }
+
+    const selectClauses = queryAst.select.map(item => this.translateSelectItem(item, adatAlias)).join(',\n       ');
 
     let whereClause = '';
     if (queryAst.where) {
@@ -546,8 +858,17 @@ export class AQLTranslator {
     const parts = chain.parts;
     const firstNorm = this.normalize(parts[0]);
 
+    const resolveAlias = (rawOrNorm) => {
+      if (!rawOrNorm) return rawOrNorm;
+      const norm = this.normalize(rawOrNorm);
+      if (this.currentAliasMapping && this.currentAliasMapping.has(norm)) {
+        return this.currentAliasMapping.get(norm);
+      }
+      return rawOrNorm;
+    };
+
     // If first part is an iterator
-    const iter = this.report.iterators.get(firstNorm);
+    const iter = this.report?.iterators?.get(firstNorm);
     if (iter) {
       if (iter.kind === 'ADAT') {
         if (parts.length === 2) {
@@ -556,16 +877,16 @@ export class AQLTranslator {
           return `${iter.alias}.${attrName}`;
         }
         if (parts.length > 2) {
-          // e.g. S.C.name or S.customer.name or S.C.state.cityName
+          // e.g. S.CT.Cityname or S.ST.State_name or S.customer.name or S.C.state.cityName
           const secondNorm = this.normalize(parts[1]);
-          const secondIter = this.report.iterators.get(secondNorm);
+          const secondIter = this.report?.iterators?.get(secondNorm);
           if (secondIter && (secondIter.kind === 'PAN' || secondIter.kind === 'PAN_STANDALONE')) {
             const attrName = parts[parts.length - 1];
             if (parts.length === 3) {
-              return `${secondIter.alias}.${attrName}`;
+              return `${resolveAlias(secondIter.alias)}.${attrName}`;
             } else {
               const targetPanName = parts[parts.length - 2];
-              return `${targetPanName}.${attrName}`;
+              return `${resolveAlias(targetPanName)}.${attrName}`;
             }
           }
           const panNode = this.pansByName.get(secondNorm);
@@ -575,20 +896,23 @@ export class AQLTranslator {
               it => (it.kind === 'PAN' || it.kind === 'PAN_STANDALONE') && it.panNode?.id === panNode.id
             );
             const aliasToUse = panIter ? panIter.alias : panNode.name.trim().replace(/[\s\-]+/g, '_');
-            return `${aliasToUse}.${attrName}`;
+            return `${resolveAlias(aliasToUse)}.${attrName}`;
           }
           const attrName = parts[parts.length - 1];
-          return `${parts[parts.length - 2]}.${attrName}`;
+          const targetPanName = parts[parts.length - 2];
+          return `${resolveAlias(targetPanName)}.${attrName}`;
         }
       } else if (iter.kind === 'PAN' || iter.kind === 'PAN_STANDALONE') {
         const attrName = parts[parts.length - 1];
-        return `${iter.alias}.${attrName}`;
+        return `${resolveAlias(iter.alias)}.${attrName}`;
       }
     }
 
-    // Direct Schema Name
+    // Direct Schema Name or Alias: e.g. CT.Cityname
     if (parts.length === 2) {
-      return `${parts[0]}.${parts[1]}`;
+      const aliasOrPan = parts[0];
+      const attrName = parts[1];
+      return `${resolveAlias(aliasOrPan)}.${attrName}`;
     }
 
     if (parts.length === 1) {
@@ -596,6 +920,7 @@ export class AQLTranslator {
     }
 
     // Multi-part chain
-    return `${parts[parts.length - 2]}.${parts[parts.length - 1]}`;
+    const target = resolveAlias(parts[parts.length - 2]);
+    return `${target}.${parts[parts.length - 1]}`;
   }
 }
